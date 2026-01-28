@@ -19,7 +19,7 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
           forecastColor: '#74c0fc',
           baseline: 8,
           volatility: 1,
-          label: 'US Points'
+          label: 'United States Points'
         };
       case 'pts_china':
         return {

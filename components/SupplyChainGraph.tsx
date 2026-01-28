@@ -11,22 +11,25 @@ import {
   ShieldCheck,
   User,
   Box,
-  LayoutGrid
+  LayoutGrid,
+  TriangleAlert,
+  ShieldBan,
+  CircleAlert
 } from 'lucide-react';
 
 interface Props {
   state: GameState;
   payoff: Payoff;
   resetKey?: number;
+  flowType: 'US' | 'CHINA';
 }
 
-export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) => {
+export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flowType }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   // Track dragging state
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [flowType, setFlowType] = useState<'US' | 'CHINA'>('US');
 
   // Store custom positions: { [id]: { x: number, y: number } }
   const [customPositions, setCustomPositions] = useState<Record<string, { x: number, y: number }>>({});
@@ -95,7 +98,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) =
 
   // Define base node positions
   const usBaseNodes = [
-    { id: 'us-source', type: 'warehouse', label: 'US Hub', icon: Building2, x: 10, y: 40, color: '#339af0' },
+    { id: 'us-source', type: 'warehouse', label: 'United States Hub', icon: Building2, x: 10, y: 40, color: '#339af0' },
     { id: 'inventory-1', type: 'inventory', label: BAN_METRICS[state.usBanFocus].label, icon: Box, x: 25, y: 30, color: '#40c057' },
     { id: 'inventory-2', type: 'inventory', label: BAN_METRICS[state.chinaBanFocus].label, icon: Box, x: 25, y: 40, color: '#40c057' },
     { id: 'inventory-3', type: 'inventory', label: 'Commodities', icon: Box, x: 25, y: 50, color: '#40c057' },
@@ -127,7 +130,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) =
     { id: 'cn-mfg-2', type: 'process', label: 'Shanghai Port', icon: Factory, x: 58, y: 60, color: '#339af0' },
 
     { id: 'cn-export-1', type: 'inventory', label: 'World Markets', icon: Box, x: 76, y: 20, color: '#e64980' },
-    { id: 'cn-export-2', type: 'inventory', label: 'US Exports', icon: Box, x: 76, y: 44, color: '#e64980' },
+    { id: 'cn-export-2', type: 'inventory', label: 'United States Exports', icon: Box, x: 76, y: 44, color: '#e64980' },
 
     { id: 'cn-customer', type: 'customer', label: 'Global Market', icon: User, x: 92, y: 32, color: '#e64980' },
   ];
@@ -195,23 +198,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) =
   };
 
   return (
-    <div ref={containerRef} className="absolute inset-0 p-10 overflow-hidden">
-
-      {/* Flow Switcher */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-white border border-[#dee2e6] rounded-lg shadow-sm p-1 flex">
-        <button
-          onClick={() => setFlowType('US')}
-          className={`px-4 py-1.5 text-[11px] font-bold rounded transition-all ${flowType === 'US' ? 'bg-[#e7f5ff] text-[#1971c2]' : 'text-[#868e96] hover:bg-[#f8f9fa]'}`}
-        >
-          US Flow
-        </button>
-        <button
-          onClick={() => setFlowType('CHINA')}
-          className={`px-4 py-1.5 text-[11px] font-bold rounded transition-all ${flowType === 'CHINA' ? 'bg-[#fff5f5] text-[#e03131]' : 'text-[#868e96] hover:bg-[#f8f9fa]'}`}
-        >
-          China Flow
-        </button>
-      </div>
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden">
 
       <svg className="w-full h-full pointer-events-none overflow-visible">
         {flowType === 'US' ? (
@@ -286,7 +273,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) =
         >
           {/* Node Icon Box */}
           <div
-            className={`w-9 h-9 rounded-sm border-[1.5px] bg-white flex items-center justify-center shadow-md transition-all ${node.type === 'inventory' ? 'rounded-md' :
+            className={`relative w-9 h-9 rounded-sm border-[1.5px] bg-white flex items-center justify-center shadow-md transition-all ${node.type === 'inventory' ? 'rounded-md' :
               node.type === 'process' ? 'rounded-sm' : 'rounded-full'
               } ${
               // Highlight banned nodes
@@ -321,21 +308,48 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) =
                 </div>
               )}
 
-            {/* Overlay badge for process nodes */}
-            {node.type === 'process' && !(
-              (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
-              (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-              (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
+            {/* Tariff Warning Triangle */}
+            {node.type === 'process' && (
+              (flowType === 'US' && state.usStrategy === 'TARIFFS') ||
+              (flowType === 'CHINA' && state.chinaStrategy === 'TARIFFS')
             ) && (
-                <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[7px] px-1 rounded-sm font-bold shadow-sm">
-                  1:2
+                <div className="absolute -top-8 -right-8 z-20 drop-shadow-sm">
+                  <TriangleAlert className="w-6 h-6 fill-[#fab005] text-white" strokeWidth={1.5} />
                 </div>
               )}
 
-            {/* Multi-stack effect for customer */}
+            {/* Blockade Icon for Finished Goods (Tariffs) */}
+            {['finished-1', 'finished-2', 'cn-export-1', 'cn-export-2'].includes(node.id) && (
+              (flowType === 'US' && state.usStrategy === 'TARIFFS') ||
+              (flowType === 'CHINA' && state.chinaStrategy === 'TARIFFS')
+            ) && (
+                <div className="absolute -top-7 -right-7 z-20 drop-shadow-sm">
+                  <div className="bg-emerald-600 text-white p-0.5 rounded-full border border-white">
+                    <ShieldBan className="w-4 h-4" strokeWidth={2} />
+                  </div>
+                </div>
+              )}
+
+
+
+
+
+            {/* Red Blinking Alert for Consumer (Impact Warning) */}
             {node.type === 'customer' && (
-              <div className="absolute -z-10 w-9 h-9 border-[1.5px] border-pink-300 rounded-full translate-x-1 translate-y-1 bg-white opacity-50" />
-            )}
+              (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS' || state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')
+            ) && (
+                <div className="absolute -top-6 -right-6 z-20 drop-shadow-sm animate-pulse">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="w-7 h-7 text-red-600"
+                  >
+                    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" className="invisible" />
+                    <path d="M12 6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 1 1-3 0v-7A1.5 1.5 0 0 1 12 6Zm0 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+                  </svg>
+                </div>
+              )}
           </div>
 
           {/* Label Card */}

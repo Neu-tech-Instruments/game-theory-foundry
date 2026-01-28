@@ -30,6 +30,7 @@ import {
   Play,
   RotateCcw,
   Maximize2,
+  RectangleHorizontal,
   ChevronDown,
   ChevronRight,
   Database,
@@ -63,6 +64,10 @@ const App: React.FC = () => {
 
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [isPanelMaximized, setIsPanelMaximized] = useState(false);
+  const [panelHeight, setPanelHeight] = useState(300); // Default medium height for better visibility
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [dragStartHeight, setDragStartHeight] = useState(0);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [recalcTrigger, setRecalcTrigger] = useState(0);
 
@@ -70,6 +75,7 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [flowType, setFlowType] = useState<'US' | 'CHINA'>('US');
 
   // Breakpoint detection
   useEffect(() => {
@@ -88,6 +94,105 @@ const App: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Drag to resize panel
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+
+      const windowHeight = window.innerHeight;
+      const newHeight = windowHeight - e.clientY - 16; // 16px for bottom margin
+
+      // Clamp between 40px (collapsed) and full screen minus top margin
+      let clampedHeight = Math.max(40, Math.min(newHeight, windowHeight - 90));
+
+      // Snap to medium size (300px) when within 30px range
+      if (Math.abs(clampedHeight - 300) < 30) {
+        clampedHeight = 300;
+      }
+
+      setPanelHeight(clampedHeight);
+
+      // Update states based on height
+      if (clampedHeight <= 50) {
+        setIsPanelCollapsed(true);
+        setIsPanelMaximized(false);
+      } else if (clampedHeight >= windowHeight - 150) {
+        setIsPanelMaximized(true);
+        setIsPanelCollapsed(false);
+      } else {
+        setIsPanelCollapsed(false);
+        setIsPanelMaximized(false);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+
+      const windowHeight = window.innerHeight;
+      const MAX_HEIGHT = windowHeight - 90;
+      const MID_HEIGHT = 300;
+      const MIN_HEIGHT = 40;
+
+      let finalHeight = panelHeight;
+      const dragDistance = panelHeight - dragStartHeight;
+      const isDraggingUp = dragDistance > 0;
+
+      // SENIOR DEV INTERACTION PATTERN: Directional Hysteresis
+      // The threshold to "leave" a state depends on direction.
+      // It should be EASY to leave (low threshold) and Sticky to arrive.
+
+      if (isDraggingUp) {
+        // DRAGGING UP (Expanding)
+        if (panelHeight > MAX_HEIGHT - 200) {
+          finalHeight = MAX_HEIGHT; // Easy to hit Max
+        } else if (panelHeight > 70) {
+          // SUPER EAGER: unique "flick" feel. 
+          // Collapsed is 40px. If you drag up just 30px (to 70px), it snaps to Medium (300px).
+          finalHeight = MID_HEIGHT;
+        } else {
+          finalHeight = MIN_HEIGHT; // Stay collapsed if barely matched
+        }
+      } else {
+        // DRAGGING DOWN (Collapsing)
+        if (panelHeight > MAX_HEIGHT - 100) {
+          finalHeight = MAX_HEIGHT; // Sticky Max
+        } else if (panelHeight > 240) {
+          finalHeight = MID_HEIGHT; // Sticky Mid
+        } else {
+          finalHeight = MIN_HEIGHT; // Very easy to collapse
+        }
+      }
+
+      setPanelHeight(finalHeight);
+
+      // Update states based on final height
+      if (finalHeight <= 50) {
+        setIsPanelCollapsed(true);
+        setIsPanelMaximized(false);
+      } else if (finalHeight >= MAX_HEIGHT - 50) {
+        setIsPanelMaximized(true);
+        setIsPanelCollapsed(false);
+      } else {
+        setIsPanelCollapsed(false);
+        setIsPanelMaximized(false);
+      }
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging]);
 
   const advanceRound = () => {
     setIsRecalculating(true);
@@ -178,6 +283,21 @@ const App: React.FC = () => {
           >
             <Trash2 className="w-3 h-3" /> Reset
           </button>
+
+          <button
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+              } else {
+                document.exitFullscreen();
+              }
+            }}
+            className="p-1.5 border border-[#dee2e6] rounded bg-white text-[#495057] hover:bg-[#f8f9fa] transition-all"
+            title="Toggle Fullscreen"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+
           <div className={`w-2 h-2 rounded-full mx-1 transition-colors ${isRecalculating ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
           <span className={`text-[11px] font-bold text-[#495057] ${isMobile ? 'hidden sm:inline' : ''}`}>{isRecalculating ? 'Processing...' : 'Simulation Active'}</span>
         </div>
@@ -208,7 +328,7 @@ const App: React.FC = () => {
           {currentView === 'simulation' ? (
             <>
               {/* Canvas Toolbar */}
-              <div className="h-12 border-b border-[#dee2e6] bg-white flex items-center px-4 gap-3 z-10 shrink-0">
+              <div className="h-12 border-b border-[#dee2e6] bg-white flex items-center px-4 gap-3 z-10 shrink-0 relative justify-between">
                 <button
                   onClick={advanceRound}
                   disabled={isRecalculating}
@@ -222,25 +342,69 @@ const App: React.FC = () => {
                   {isRecalculating && <RotateCcw className="w-3.5 h-3.5 animate-spin" />}
                   {isRecalculating ? 'Committing...' : 'NEXT ROUND'}
                 </button>
-                <div className="ml-auto text-[11px] text-[#868e96] flex items-center gap-4">
+
+                {/* Flow Switcher - Breadcrumb Style */}
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3">
+                  <button
+                    onClick={() => setFlowType('US')}
+                    className={`text-[13px] transition-all ${flowType === 'US'
+                      ? 'text-slate-900 font-bold'
+                      : 'text-slate-400 font-medium hover:text-slate-600'
+                      }`}
+                  >
+                    United States Flow
+                  </button>
+
+                  <span className="text-slate-300 font-light">/</span>
+
+                  <button
+                    onClick={() => setFlowType('CHINA')}
+                    className={`text-[13px] transition-all ${flowType === 'CHINA'
+                      ? 'text-slate-900 font-bold'
+                      : 'text-slate-400 font-medium hover:text-slate-600'
+                      }`}
+                  >
+                    China Flow
+                  </button>
+                </div>
+
+                <div className="text-[11px] text-[#868e96] flex items-center gap-4">
                   <span className="flex items-center gap-1"><Database className="w-3 h-3" /> Source: Global Trade Monitor v4.2</span>
                 </div>
               </div>
 
               {/* Graph Workspace */}
               <div className="flex-1 relative overflow-hidden">
-                <SupplyChainGraph state={state} payoff={currentPayoff} resetKey={recalcTrigger} />
+                <SupplyChainGraph state={state} payoff={currentPayoff} resetKey={recalcTrigger} flowType={flowType} />
 
                 {/* Bottom Panel (Floating) */}
-                <div className={`absolute left-4 right-4 bg-white border border-[#dee2e6] rounded-lg shadow-2xl flex flex-col overflow-hidden z-20 transition-all duration-300 
-                  ${isPanelMaximized
-                    ? 'top-4 bottom-4'
-                    : isPanelCollapsed ? 'bottom-4 h-10' : 'bottom-4 h-64'
-                  }`}>
+                <div
+                  className={`absolute left-4 right-4 bg-white border border-[#dee2e6] rounded-lg shadow-2xl flex flex-col overflow-hidden z-20 ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-out'
+                    }`}
+                  style={{
+                    bottom: '16px',
+                    height: isPanelMaximized
+                      ? 'calc(100% - 16px)'
+                      : isPanelCollapsed
+                        ? '40px'
+                        : `${panelHeight}px`
+                  }}
+                >
                   <div
-                    className="h-10 border-b border-[#dee2e6] flex items-center px-4 bg-[#f8f9fa] shrink-0 cursor-pointer"
+                    className={`h-10 border-b border-[#dee2e6] flex items-center px-4 bg-[#f8f9fa] shrink-0 ${isDragging ? 'cursor-ns-resize' : 'cursor-pointer'
+                      } hover:bg-[#e9ecef] transition-colors relative group`}
                     onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+                    onMouseDown={(e) => {
+                      // Only start dragging if clicking on the header itself, not buttons
+                      if ((e.target as HTMLElement).closest('button')) return;
+                      setIsDragging(true);
+                      setDragStartY(e.clientY);
+                      setDragStartHeight(panelHeight);
+                      e.preventDefault();
+                    }}
                   >
+                    {/* Drag Handle Indicator */}
+                    <div className="absolute top-1 left-1/2 -translate-x-1/2 w-12 h-1 bg-slate-300 rounded-full group-hover:bg-slate-400 transition-colors" />
                     <div className="flex border border-[#dee2e6] rounded overflow-hidden shadow-sm my-1.5" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => { setBottomTab('trends'); setIsPanelCollapsed(false); }}
@@ -259,7 +423,7 @@ const App: React.FC = () => {
                           : 'bg-white text-[#495057] hover:bg-[#f8f9fa]'
                           }`}
                       >
-                        Stability Forecast
+                        Prisoner's Dilemma
                       </button>
                       <div className="w-px bg-[#dee2e6]" />
                       <button
@@ -273,6 +437,18 @@ const App: React.FC = () => {
                       </button>
                     </div>
                     <div className="ml-auto flex items-center gap-3">
+                      <div
+                        className="py-2 px-1 cursor-pointer group"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsPanelMaximized(false);
+                          setIsPanelCollapsed(false);
+                          setPanelHeight(300);
+                        }}
+                        title="Medium size"
+                      >
+                        <div className="w-4 h-0.5 bg-[#adb5bd] group-hover:bg-[#228be6] transition-colors rounded-full" />
+                      </div>
                       <Maximize2
                         className={`w-3 h-3 cursor-pointer transition-colors ${isPanelMaximized ? 'text-[#228be6]' : 'text-[#adb5bd] hover:text-[#228be6]'}`}
                         onClick={(e) => {
@@ -283,22 +459,12 @@ const App: React.FC = () => {
                           } else {
                             setIsPanelMaximized(true);
                             setIsPanelCollapsed(false);
+                            setPanelHeight(300);
                           }
                         }}
+                        title="Maximize"
                       />
-                      <ChevronDown
-                        className={`w-4 h-4 text-[#adb5bd] cursor-pointer hover:text-[#228be6] transition-transform duration-300 ${isPanelCollapsed ? 'rotate-180' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isPanelMaximized) {
-                            setIsPanelMaximized(false);
-                            setIsPanelCollapsed(false);
-                          } else {
-                            setIsPanelCollapsed(!isPanelCollapsed);
-                            setIsPanelMaximized(false);
-                          }
-                        }}
-                      />
+
                     </div>
                   </div>
                   <div className="flex-1 p-4 flex gap-6">
@@ -398,7 +564,7 @@ const App: React.FC = () => {
                                         <span className="text-[20px] font-black tracking-tight uppercase leading-none">{status}</span>
                                         <div className="flex items-center gap-4 ml-auto font-black text-[16px]">
                                           <div className="flex flex-col items-center">
-                                            <span className="text-[10px] opacity-60 font-black uppercase tracking-widest">TOTAL US</span>
+                                            <span className="text-[10px] opacity-60 font-black uppercase tracking-widest">TOTAL UNITED STATES</span>
                                             <span>{usTotal.toFixed(1)}</span>
                                           </div>
                                           <div className="w-px h-6 bg-current opacity-20" />
@@ -437,7 +603,7 @@ const App: React.FC = () => {
                                     <div className="flex items-center justify-between mb-2">
                                       <div className="flex gap-6">
                                         <div className="flex flex-col">
-                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">US MOVE</span>
+                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">UNITED STATES MOVE</span>
                                           <span className={`text-[12px] font-black ${entry.usStrategy === 'FREE_TRADE' ? 'text-emerald-600' : 'text-blue-600'}`}>{entry.usStrategy.replace('_', ' ')}</span>
                                         </div>
                                         <div className="flex flex-col">
@@ -494,16 +660,13 @@ const App: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#f8f9fa]/50">
             {activeTab === 'config' ? (
               <>
-                <section>
-                  <label className="text-[10px] font-black text-[#868e96] uppercase tracking-widest block mb-2">Scenario Context</label>
-                  <ScenarioSelector current={state.scenario} onChange={(s) => setState(p => ({ ...p, scenario: s }))} />
-                </section>
+
 
                 <section>
                   <label className="text-[10px] font-black text-[#868e96] uppercase tracking-widest block mb-2">Policy Levers</label>
                   <div className="flex flex-col gap-6">
                     <StrategyToggle
-                      label="US Protocol"
+                      label="United States Protocol"
                       value={state.usStrategy}
                       focusValue={state.usBanFocus}
                       onChange={(s) => setState(prev => ({ ...prev, usStrategy: s }))}
@@ -548,7 +711,7 @@ const App: React.FC = () => {
 
           {/* Side HUD Footer */}
           <div className="border-t border-[#dee2e6] p-4 space-y-2 bg-white">
-            <EconomyHUD country="US" state={currentPayoff.us} color="blue" />
+            <EconomyHUD country="United States" state={currentPayoff.us} color="blue" />
             <EconomyHUD country="China" state={currentPayoff.china} color="red" />
 
           </div>

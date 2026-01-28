@@ -46,7 +46,7 @@ export const StrategyToggle: React.FC<Props> = ({
               <button
                 key={opt}
                 onClick={() => onFocusChange(opt)}
-                className={`py-2 px-3 rounded-full border-2 text-[9px] font-black uppercase tracking-widest text-left transition-all ${focusValue === opt
+                className={`py-2 px-3 rounded-md border-2 text-[9px] font-black uppercase tracking-widest text-left transition-all ${focusValue === opt
                   ? 'bg-[#ffc9c9] border-[#e03131]/50 text-[#c92a2a]'
                   : 'bg-[#e9ecef] border-[#dee2e6] text-[#adb5bd] hover:border-[#ced4da]'
                   }`}

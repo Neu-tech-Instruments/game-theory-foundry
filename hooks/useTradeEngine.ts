@@ -84,9 +84,29 @@ export const calculatePayoff = (state: GameState): Payoff => {
   us.points = finalizePoints(us.points);
   china.points = finalizePoints(china.points);
 
+  // Generate descriptive outcome text
+  const diff = us.points - china.points;
+  let description = '';
+
+  if (Math.abs(diff) < 0.5) {
+    description = 'Balanced outcome - Both economies maintain equilibrium';
+  } else if (diff > 2.5) {
+    description = 'US wins decisively - China suffers significant economic damage';
+  } else if (diff > 1.0) {
+    description = 'US wins - China experiences moderate economic pressure';
+  } else if (diff > 0) {
+    description = 'US gains slight advantage - China faces minor setbacks';
+  } else if (diff < -2.5) {
+    description = 'China wins decisively - US suffers significant economic damage';
+  } else if (diff < -1.0) {
+    description = 'China wins - US experiences moderate economic pressure';
+  } else {
+    description = 'China gains slight advantage - US faces minor setbacks';
+  }
+
   return {
     us, china,
-    description: `Active Geopolitical Friction: ${state.usStrategy} vs ${state.chinaStrategy}`
+    description
   };
 };
 
