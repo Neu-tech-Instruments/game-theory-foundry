@@ -1,0 +1,5 @@
+{
+  "name": "Game theory foundry",
+  "description": "An interactive game theory simulator exploring the complex dynamics of trade wars between the US, China, and the EU. Based on real-world economic scenarios of trade diversion and strategic alignment.",
+  "requestFramePermissions": []
+}
