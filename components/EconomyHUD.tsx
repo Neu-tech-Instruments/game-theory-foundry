@@ -28,16 +28,16 @@ export const EconomyHUD: React.FC<Props> = ({ country, state, color }) => {
         <span className={`text-[10px] font-bold uppercase tracking-widest ${getLabelColor()}`}>{country}</span>
         <div className={`w-2 h-2 rounded-full ${getIndicatorColor()} opacity-80`} />
       </div>
-      
+
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         <div className="flex flex-col">
           <div className="flex items-center gap-1 opacity-50">
             <TrendingUp className="w-2.5 h-2.5" />
-            <span className="text-[8px] uppercase font-bold">GDP (Tril)</span>
+            <span className="text-[8px] uppercase font-bold">Points</span>
           </div>
-          <span className="text-[13px] font-bold text-[#1c1e21]">${state.gdp.toFixed(1)}</span>
+          <span className="text-[13px] font-bold text-[#1c1e21]">{state.points.toFixed(1)}/10</span>
         </div>
-        
+
         <div className="flex flex-col">
           <div className="flex items-center gap-1 opacity-50">
             <Activity className="w-2.5 h-2.5" />
@@ -47,7 +47,7 @@ export const EconomyHUD: React.FC<Props> = ({ country, state, color }) => {
             {state.inflation.toFixed(1)}%
           </span>
         </div>
-        
+
         <div className="flex flex-col">
           <div className="flex items-center gap-1 opacity-50">
             <ShieldCheck className="w-2.5 h-2.5" />

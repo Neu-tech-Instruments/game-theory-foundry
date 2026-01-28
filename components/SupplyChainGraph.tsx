@@ -104,7 +104,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) =
     { id: 'proc-2', type: 'process', label: 'DC Systems', icon: LayoutGrid, x: 55, y: 25, color: '#fab005' },
     { id: 'proc-3', type: 'process', label: 'PIT Infrastructure', icon: LayoutGrid, x: 55, y: 35, color: '#fab005' },
     { id: 'proc-4', type: 'process', label: 'Global SaaS', icon: LayoutGrid, x: 55, y: 45, color: '#fab005' },
-    { id: 'proc-5', type: 'process', label: 'Eurasian Net', icon: LayoutGrid, x: 55, y: 55, color: '#fab005' },
+    { id: 'proc-5', type: 'process', label: 'Global Network', icon: LayoutGrid, x: 55, y: 55, color: '#fab005' },
 
     { id: 'finished-1', type: 'inventory', label: 'Market Access', icon: Box, x: 75, y: 30, color: '#40c057' },
     { id: 'finished-2', type: 'inventory', label: 'Trade Balance', icon: Box, x: 75, y: 55, color: '#40c057' },
@@ -126,7 +126,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) =
     { id: 'cn-proc-3', type: 'process', label: 'Assembly Line', icon: Factory, x: 58, y: 40, color: '#339af0' },
     { id: 'cn-mfg-2', type: 'process', label: 'Shanghai Port', icon: Factory, x: 58, y: 60, color: '#339af0' },
 
-    { id: 'cn-export-1', type: 'inventory', label: 'EU Exports', icon: Box, x: 76, y: 20, color: '#e64980' },
+    { id: 'cn-export-1', type: 'inventory', label: 'World Markets', icon: Box, x: 76, y: 20, color: '#e64980' },
     { id: 'cn-export-2', type: 'inventory', label: 'US Exports', icon: Box, x: 76, y: 44, color: '#e64980' },
 
     { id: 'cn-customer', type: 'customer', label: 'Global Market', icon: User, x: 92, y: 32, color: '#e64980' },
@@ -287,7 +287,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) =
           {/* Node Icon Box */}
           <div
             className={`w-9 h-9 rounded-sm border-[1.5px] bg-white flex items-center justify-center shadow-md transition-all ${node.type === 'inventory' ? 'rounded-md' :
-                node.type === 'process' ? 'rounded-sm' : 'rounded-full'
+              node.type === 'process' ? 'rounded-sm' : 'rounded-full'
               } ${
               // Highlight banned nodes
               (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||

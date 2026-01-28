@@ -7,7 +7,6 @@ import {
     ShieldAlert,
     CheckCircle2,
     TrendingUp,
-    Maximize2,
     Clock,
     MapPin,
     Ship,
@@ -57,16 +56,8 @@ export const TradeRoutes: React.FC<Props> = ({ state }) => {
                 endLat: 31.2304, endLng: 121.4737, // Shanghai
             },
             {
-                startLat: 38.9072, startLng: -77.0369, // DC
-                endLat: 51.9244, endLng: 4.4777,   // Rotterdam
-            },
-            {
                 startLat: 22.3193, startLng: 114.1694, // Hong Kong
                 endLat: 37.7749, endLng: -122.4194, // SF
-            },
-            {
-                startLat: 51.5074, startLng: -0.1278, // London
-                endLat: 31.2304, endLng: 121.4737, // Shanghai
             },
             {
                 startLat: 1.3521, startLng: 103.8198, // Singapore
@@ -100,10 +91,8 @@ export const TradeRoutes: React.FC<Props> = ({ state }) => {
     const portsData = useMemo(() => [
         { lat: 40.7128, lng: -74.0060, name: 'New York', color: '#868e96', size: 0.5 },
         { lat: 31.2304, lng: 121.4737, name: 'Shanghai', color: '#868e96', size: 0.7 },
-        { lat: 51.9244, lng: 4.4777, name: 'Rotterdam', color: '#868e96', size: 0.5 },
-        { lat: 22.3193, lng: 114.1694, name: 'Hong Kong', color: '#868e96', size: 0.5 },
+        { lat: 21.3193, lng: 114.1694, name: 'Hong Kong', color: '#868e96', size: 0.5 },
         { lat: 37.7749, lng: -122.4194, name: 'San Francisco', color: '#868e96', size: 0.5 },
-        { lat: 51.5074, lng: -0.1278, name: 'London', color: '#868e96', size: 0.5 },
         { lat: 38.9072, lng: -77.0369, name: 'Washington DC', color: '#868e96', size: 0.4 },
         { lat: 1.3521, lng: 103.8198, name: 'Singapore', color: '#868e96', size: 0.6 },
         { lat: 25.2048, lng: 55.2708, name: 'Dubai', color: '#868e96', size: 0.5 },

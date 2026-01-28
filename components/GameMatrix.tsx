@@ -37,15 +37,15 @@ export const GameMatrix: React.FC<Props> = ({ state }) => {
     <div className="flex flex-col h-full justify-between gap-1">
       <div className="flex justify-between items-start">
         <div className="flex flex-col">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">US</span>
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">US PTS</span>
           <span className={`text-lg font-black tracking-tight ${isActive ? 'text-blue-600' : 'text-slate-700'}`}>
-            {payoff.us.gdp.toFixed(1)}
+            {payoff.us.points.toFixed(1)}
           </span>
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">CHN</span>
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">CHN PTS</span>
           <span className={`text-lg font-black tracking-tight ${isActive ? 'text-red-600' : 'text-slate-700'}`}>
-            {payoff.china.gdp.toFixed(1)}
+            {payoff.china.points.toFixed(1)}
           </span>
         </div>
       </div>

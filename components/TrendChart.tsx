@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Payoff } from '../types';
 
-export type MetricType = 'trade_surplus' | 'gdp_forecast' | 'inflation_index';
+export type MetricType = 'pts_us' | 'pts_china' | 'inflation_index';
 
 interface Props {
   payoff: Payoff;
@@ -13,26 +13,26 @@ interface Props {
 export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
   const config = useMemo(() => {
     switch (metric) {
-      case 'trade_surplus':
-        return {
-          baseColor: '#1c1e21',
-          forecastColor: '#fab005',
-          baseline: 100,
-          volatility: 35,
-          label: 'Trade Surplus'
-        };
-      case 'gdp_forecast':
+      case 'pts_us':
         return {
           baseColor: '#1971c2',
           forecastColor: '#74c0fc',
-          baseline: 400,
-          volatility: 15,
-          label: 'GDP Growth'
+          baseline: 8,
+          volatility: 1,
+          label: 'US Points'
         };
-      case 'inflation_index':
+      case 'pts_china':
         return {
           baseColor: '#e03131',
           forecastColor: '#ff8787',
+          baseline: 7,
+          volatility: 1.5,
+          label: 'China Points'
+        };
+      case 'inflation_index':
+        return {
+          baseColor: '#495057',
+          forecastColor: '#adb5bd',
           baseline: 50,
           volatility: 5,
           label: 'Inflation Rate'
@@ -42,7 +42,7 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
 
   const data = useMemo(() => {
     // Generate data based on metric config
-    const points = [];
+    const pointsData = [];
     const currentYear = new Date().getFullYear();
     const months = [`${currentYear}`, 'Q2', 'Q3', 'Q4'];
     const cycles = 4;
@@ -51,25 +51,25 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
     let timeIndex = 0;
     for (let c = 0; c < cycles; c++) {
       for (let s = 0; s < stepsPerCycle; s++) {
-        const base = config.baseline + (Math.random() * 50);
+        const base = config.baseline + (Math.random() * 2);
         // Vary shape based on metric
         let demand, forecast;
 
-        if (metric === 'trade_surplus') {
-          // Sawtooth
-          demand = base + (s * config.volatility);
-          forecast = demand + (Math.sin(s) * 40);
-        } else if (metric === 'gdp_forecast') {
-          // Smooth curve
-          demand = base + Math.sin(timeIndex * 0.2) * 50 + (s * 5);
-          forecast = demand + 20;
+        if (metric === 'pts_us') {
+          // Stable high points
+          demand = Math.min(10, base + Math.sin(timeIndex * 0.1) * 0.5 + (s * 0.05));
+          forecast = Math.min(10, demand + 0.5);
+        } else if (metric === 'pts_china') {
+          // Scaled points
+          demand = Math.min(10, base + Math.sin(timeIndex * 0.15) * 0.8 + (s * 0.08));
+          forecast = Math.min(10, demand + 0.6);
         } else {
-          // Volatile spike
+          // Volatile spike for inflation
           demand = base + (Math.random() * config.volatility * 5);
           forecast = demand + (Math.random() * 10);
         }
 
-        points.push({
+        pointsData.push({
           time: timeIndex++,
           label: s === 0 ? months[c] : '',
           demand: demand,
@@ -77,7 +77,7 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
         });
       }
     }
-    return points;
+    return pointsData;
   }, [payoff, metric, config]);
 
   return (
@@ -112,7 +112,7 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
             labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
           />
           <Area
-            type={metric === 'trade_surplus' ? "stepAfter" : "monotone"}
+            type="monotone"
             dataKey="demand"
             stroke={config.baseColor}
             strokeWidth={1}
