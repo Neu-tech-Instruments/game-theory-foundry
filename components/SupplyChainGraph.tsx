@@ -401,6 +401,16 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
                   </div>
                 )}
 
+              {/* Tariff Dollar Sign Icon */}
+              {(['proc-1', 'proc-2', 'proc-3', 'proc-4', 'proc-5', 'cn-proc-1', 'cn-proc-2', 'cn-mfg-1', 'cn-proc-3', 'cn-mfg-2'].includes(node.id)) && (
+                (flowType === 'US' && state.usStrategy === 'TARIFFS') ||
+                (flowType === 'CHINA' && state.chinaStrategy === 'TARIFFS')
+              ) && (
+                  <div className="absolute -top-7 -right-7 z-25 drop-shadow-md">
+                    <img src="/tariff-icon.png" alt="Tariff" className="w-6 h-6 object-contain" />
+                  </div>
+                )}
+
 
 
 

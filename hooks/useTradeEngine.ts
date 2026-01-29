@@ -9,21 +9,31 @@ export const calculatePayoff = (state: GameState): Payoff => {
   const china: EconomyState = { ...BASE_ECONOMY.CHINA };
 
   // 1. TARIFFS LOGIC
-  if (state.usStrategy === 'TARIFFS') {
-    us.points -= 0.5;
-    us.inflation += 0.8 * scenario.tradeDependency.usOnChina;
+  const usTariff = state.usStrategy === 'TARIFFS';
+  const chinaTariff = state.chinaStrategy === 'TARIFFS';
+
+  if (usTariff && chinaTariff) {
+    // Nash Equilibrium: Both retaliate (5, 5)
+    us.points = 5.0;
+    china.points = 5.0;
+
+    us.inflation += 2.0;
+    china.inflation += 2.0;
+    us.stability -= 10;
+    china.stability -= 10;
+  } else if (usTariff) {
+    // US Impose Tariffs / China Free Trade (12, 2)
+    us.points = 12.0;
+    china.points = 2.0;
+
     us.stability += 5;
-
-    china.points -= 1.0;
     china.inflation += 0.3;
-  }
+  } else if (chinaTariff) {
+    // China Impose Tariffs / US Free Trade (2, 12)
+    china.points = 12.0;
+    us.points = 2.0;
 
-  if (state.chinaStrategy === 'TARIFFS') {
-    china.points -= 0.5;
-    china.inflation += 0.5 * scenario.tradeDependency.chinaOnUs;
     china.stability += 3;
-
-    us.points -= 1.0;
     us.inflation += 0.6;
   }
 
@@ -77,8 +87,8 @@ export const calculatePayoff = (state: GameState): Payoff => {
   const finalizePoints = (pts: number) => {
     // Force to 0.5 increments
     const rounded = Math.round(pts * 2) / 2;
-    // Clamp between 2.0 and 10.0
-    return Math.max(2, Math.min(10, rounded));
+    // Clamp between 2.0 and 15.0 (Updated to allow 12)
+    return Math.max(2, Math.min(15, rounded));
   };
 
   us.points = finalizePoints(us.points);
