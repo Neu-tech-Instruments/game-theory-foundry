@@ -534,9 +534,10 @@ const App: React.FC = () => {
                                 const chinaTotal = state.history.reduce((sum, h) => sum + h.payoff.china.points, 0);
                                 const avgDiff = (usTotal - chinaTotal) / state.history.length;
 
-                                let status = "STALEMATE";
+                                let status = "GLOBAL OPTIMUM";
                                 let desc = "Global Optimum: Maximum growth for both.";
                                 if (state.usStrategy === 'TARIFFS' && state.chinaStrategy === 'TARIFFS') {
+                                  status = "STRATEGIC STALEMATE";
                                   desc = "Nash Equilibrium: Both retaliate; mutual loss.";
                                 }
                                 let icon = <ShieldAlert className="w-6 h-6 text-slate-400" />;
