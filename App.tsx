@@ -535,7 +535,10 @@ const App: React.FC = () => {
                                 const avgDiff = (usTotal - chinaTotal) / state.history.length;
 
                                 let status = "STALEMATE";
-                                let desc = "Equilibrium maintained through balanced strategic exchange.";
+                                let desc = "Global Optimum: Maximum growth for both.";
+                                if (state.usStrategy === 'TARIFFS' && state.chinaStrategy === 'TARIFFS') {
+                                  desc = "Nash Equilibrium: Both retaliate; mutual loss.";
+                                }
                                 let icon = <ShieldAlert className="w-6 h-6 text-slate-400" />;
                                 let colorClass = "bg-slate-50 border-slate-200 text-slate-700";
 
@@ -546,12 +549,12 @@ const App: React.FC = () => {
                                   colorClass = "bg-amber-50 border-amber-200 text-amber-900";
                                 } else if (avgDiff > 0.8) {
                                   status = "US STRATEGIC LEAD";
-                                  desc = "The US has successfully contained escalation while preserving growth.";
+                                  desc = "US protects jobs; China loses export revenue.";
                                   icon = <Target className="w-6 h-6 text-blue-500" />;
                                   colorClass = "bg-blue-50 border-blue-200 text-blue-900";
                                 } else if (avgDiff < -0.8) {
                                   status = "CHINA STRATEGIC LEAD";
-                                  desc = "China has navigated restrictions while maintaining a relative advantage.";
+                                  desc = "US loses manufacturing; China gains via protectionism.";
                                   icon = <Brain className="w-6 h-6 text-red-500" />;
                                   colorClass = "bg-red-50 border-red-200 text-red-900";
                                 }
