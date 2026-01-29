@@ -310,18 +310,18 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
 
             {/* Tariff Warning Triangle */}
             {node.type === 'process' && (
-              (flowType === 'US' && state.usStrategy === 'TARIFFS') ||
-              (flowType === 'CHINA' && state.chinaStrategy === 'TARIFFS')
+              (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')) ||
+              (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS'))
             ) && (
                 <div className="absolute -top-8 -right-8 z-20 drop-shadow-sm">
                   <TriangleAlert className="w-6 h-6 fill-[#fab005] text-white" strokeWidth={1.5} />
                 </div>
               )}
 
-            {/* Blockade Icon for Finished Goods (Tariffs) */}
+            {/* Blockade Icon for Finished Goods (Tariffs & Bans) */}
             {['finished-1', 'finished-2', 'cn-export-1', 'cn-export-2'].includes(node.id) && (
-              (flowType === 'US' && state.usStrategy === 'TARIFFS') ||
-              (flowType === 'CHINA' && state.chinaStrategy === 'TARIFFS')
+              (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')) ||
+              (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS'))
             ) && (
                 <div className="absolute -top-7 -right-7 z-20 drop-shadow-sm">
                   <div className="bg-emerald-600 text-white p-0.5 rounded-full border border-white">

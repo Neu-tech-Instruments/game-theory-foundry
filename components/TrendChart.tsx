@@ -57,12 +57,12 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
 
         if (metric === 'pts_us') {
           // Stable high points
-          demand = Math.min(10, base + Math.sin(timeIndex * 0.1) * 0.5 + (s * 0.05));
-          forecast = Math.min(10, demand + 0.5);
+          demand = base + Math.sin(timeIndex * 0.1) * 0.5 + (s * 0.05);
+          forecast = demand + 0.5;
         } else if (metric === 'pts_china') {
           // Scaled points
-          demand = Math.min(10, base + Math.sin(timeIndex * 0.15) * 0.8 + (s * 0.08));
-          forecast = Math.min(10, demand + 0.6);
+          demand = base + Math.sin(timeIndex * 0.15) * 0.8 + (s * 0.08);
+          forecast = demand + 0.6;
         } else {
           // Volatile spike for inflation
           demand = base + (Math.random() * config.volatility * 5);
@@ -86,7 +86,7 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
         <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="colorDemand" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={config.baseColor} stopOpacity={0.1} />
+              <stop offset="5%" stopColor={config.baseColor} stopOpacity={0.2} />
               <stop offset="95%" stopColor={config.baseColor} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorForecast" x1="0" y1="0" x2="0" y2="1">
@@ -94,7 +94,7 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
               <stop offset="95%" stopColor={config.forecastColor} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="1 1" vertical={true} stroke="#f1f3f5" />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f3f5" />
           <XAxis
             dataKey="label"
             axisLine={{ stroke: '#dee2e6' }}
@@ -105,7 +105,7 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
             axisLine={false}
             tickLine={false}
             tick={{ fontSize: 9, fill: '#adb5bd' }}
-            domain={[0, 'auto']}
+            domain={['dataMin - 0.5', 'dataMax + 0.5']}
           />
           <Tooltip
             contentStyle={{ backgroundColor: '#fff', border: '1px solid #dee2e6', borderRadius: '4px', fontSize: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
@@ -115,7 +115,7 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
             type="monotone"
             dataKey="demand"
             stroke={config.baseColor}
-            strokeWidth={1}
+            strokeWidth={2.5}
             fillOpacity={1}
             fill="url(#colorDemand)"
             animationDuration={1000}
