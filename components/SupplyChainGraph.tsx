@@ -174,8 +174,9 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
   const chinaBaseNodes = [
     { id: 'cn-source', type: 'warehouse', label: 'China Hub', icon: Building2, x: 8, y: 32, color: '#e03131' },
 
+    { id: 'cn-us-import', type: 'inventory', label: BAN_METRICS[state.usBanFocus].label, icon: Box, x: 22, y: 8, color: '#339af0' },
     { id: 'cn-raw', type: 'inventory', label: 'Rare Earths', icon: Database, x: 22, y: 44, color: '#fab005' },
-    { id: 'cn-inventory-1', type: 'inventory', label: 'Raw Materials', icon: Box, x: 22, y: 20, color: '#40c057' },
+    { id: 'cn-inventory-1', type: 'inventory', label: 'Raw Materials', icon: Box, x: 22, y: 26, color: '#40c057' },
 
     { id: 'cn-proc-1', type: 'process', label: 'Regional Hub', icon: LayoutGrid, x: 40, y: 12, color: '#339af0' },
     { id: 'cn-proc-2', type: 'process', label: 'Component Mfg', icon: LayoutGrid, x: 40, y: 32, color: '#339af0' },
@@ -185,8 +186,8 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
     { id: 'cn-proc-3', type: 'process', label: 'Assembly Line', icon: Factory, x: 58, y: 40, color: '#339af0' },
     { id: 'cn-mfg-2', type: 'process', label: 'Shanghai Port', icon: Factory, x: 58, y: 60, color: '#339af0' },
 
-    { id: 'cn-export-1', type: 'inventory', label: 'World Markets', icon: Box, x: 76, y: 20, color: '#e64980' },
-    { id: 'cn-export-2', type: 'inventory', label: 'United States Exports', icon: Box, x: 76, y: 44, color: '#e64980' },
+    { id: 'cn-export-1', type: 'inventory', label: 'World Markets', icon: Box, x: 76, y: 20, color: '#40c057' },
+    { id: 'cn-export-2', type: 'inventory', label: 'United States Exports', icon: Box, x: 76, y: 44, color: '#40c057' },
 
     { id: 'cn-customer', type: 'customer', label: 'Global Market', icon: User, x: 92, y: 32, color: '#e64980' },
   ];
@@ -221,8 +222,8 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
     const cp2y = endY;
 
     const isActive = !(
-      (state.usStrategy === 'EXPORT_BANS' && fromId === 'inventory-1') ||
-      (state.chinaStrategy === 'EXPORT_BANS' && fromId === 'inventory-2')
+      (state.chinaStrategy === 'EXPORT_BANS' && fromId === 'inventory-2') ||
+      (state.usStrategy === 'EXPORT_BANS' && fromId === 'cn-us-import')
     );
 
     return (
@@ -291,8 +292,12 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
             </>
           ) : (
             <>
+              {renderLink('cn-source', 'cn-us-import')}
               {renderLink('cn-source', 'cn-raw')}
               {renderLink('cn-source', 'cn-inventory-1')}
+
+              {renderLink('cn-us-import', 'cn-proc-1')}
+              {renderLink('cn-us-import', 'cn-proc-2')}
 
               {renderLink('cn-inventory-1', 'cn-proc-1')}
               {renderLink('cn-inventory-1', 'cn-proc-2')}
@@ -343,14 +348,14 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
                 node.type === 'process' ? 'rounded-sm' : 'rounded-full'
                 } ${
                 // Highlight banned nodes
-                (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
+                (state.usStrategy === 'EXPORT_BANS' && (node.id === 'inventory-1' || node.id === 'cn-us-import')) ||
                   (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
                   (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
                   ? 'border-red-500 border-[3px] animate-pulse bg-red-50'
                   : ''
                 }`}
               style={{
-                borderColor: (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
+                borderColor: (state.usStrategy === 'EXPORT_BANS' && (node.id === 'inventory-1' || node.id === 'cn-us-import')) ||
                   (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
                   (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
                   ? '#ef4444'
@@ -358,7 +363,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
               }}
             >
               <node.icon className="w-5 h-5" style={{
-                color: (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
+                color: (state.usStrategy === 'EXPORT_BANS' && (node.id === 'inventory-1' || node.id === 'cn-us-import')) ||
                   (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
                   (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
                   ? '#ef4444'
@@ -366,7 +371,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
               }} strokeWidth={2.5} />
 
               {/* Export Ban Badge */}
-              {((state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
+              {((state.usStrategy === 'EXPORT_BANS' && (node.id === 'inventory-1' || node.id === 'cn-us-import')) ||
                 (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
                 (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')) && (
                   <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[6px] px-1.5 py-0.5 rounded-full font-black shadow-lg border border-white">
@@ -423,12 +428,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
               <span className="text-[9px] font-bold text-[#495057] whitespace-nowrap">{node.label}</span>
             </div>
 
-            {/* Sub-label for customer node */}
-            {node.type === 'customer' && (
-              <div className="bg-[#dee2e6] text-[#495057] text-[7px] font-bold px-1 rounded-sm uppercase tracking-tighter">
-                30 Entities [IMPR...]
-              </div>
-            )}
+
           </div>
         ))}
       </div>
