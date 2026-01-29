@@ -41,7 +41,8 @@ import {
   Brain,
   Zap,
   ShieldAlert,
-  Target
+  Target,
+  Video
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -315,6 +316,7 @@ const App: React.FC = () => {
             <button onClick={() => setCurrentView('trade_routes')}>
               <Layers className={`w-5 h-5 cursor-pointer transition-colors ${currentView === 'trade_routes' ? 'text-[#228be6]' : 'text-[#868e96] hover:text-[#228be6]'}`} />
             </button>
+            <Video className="w-5 h-5 text-[#868e96] hover:text-[#228be6] cursor-pointer" />
             <Search className="w-5 h-5 text-[#868e96] hover:text-[#228be6] cursor-pointer" />
             <div className="mt-auto mb-2 flex flex-col items-center gap-4">
               <Settings2 className="w-5 h-5 text-[#868e96] hover:text-[#228be6] cursor-pointer" />
