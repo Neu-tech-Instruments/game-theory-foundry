@@ -60,17 +60,64 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
     return () => observer.disconnect();
   }, []);
 
-  // Handle global mouse move/up for dragging
+  /* ZOOM & PAN STATE */
+  const [viewState, setViewState] = useState({ scale: 1, x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+
+  // Handle Zoom (Wheel / Trackpad Pinch)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+
+      const rect = el.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      setViewState(prev => {
+        // Sensitivity factor - negative deltaY means zoom in (scrolling up)
+        const zoomFactor = -e.deltaY * 0.01;
+        const newScale = Math.min(Math.max(0.5, prev.scale + zoomFactor), 4);
+
+        // Calculate the mouse position relative to the content before scaling
+        const contentX = (mouseX - prev.x) / prev.scale;
+        const contentY = (mouseY - prev.y) / prev.scale;
+
+        // Calculate new X/Y to keep mouse point stable
+        const newX = mouseX - (contentX * newScale);
+        const newY = mouseY - (contentY * newScale);
+
+        return { scale: newScale, x: newX, y: newY };
+      });
+    };
+
+    // Use passive: false to allow preventing default scroll
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  // Handle global mouse move/up for dragging & panning
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
+      // 1. Handle Node Dragging
       if (draggingId && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
 
-        // Calculate new percentage position
-        // Clamp to 0-100 to stay inside container
-        let newX = ((e.clientX - rect.left) / rect.width) * 100;
-        let newY = ((e.clientY - rect.top) / rect.height) * 100;
+        // Mouse position in Container space
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
 
+        // Inverse Transform: Convert to Inner Content space
+        const innerX = (mx - viewState.x) / viewState.scale;
+        const innerY = (my - viewState.y) / viewState.scale;
+
+        // Convert to percentage
+        let newX = (innerX / rect.width) * 100;
+        let newY = (innerY / rect.height) * 100;
+
+        // Clamp
         newX = Math.max(0, Math.min(100, newX));
         newY = Math.max(0, Math.min(100, newY));
 
@@ -79,13 +126,22 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
           [draggingId]: { x: newX, y: newY }
         }));
       }
+      // 2. Handle Canvas Panning
+      else if (isPanning) {
+        setViewState(prev => ({
+          ...prev,
+          x: prev.x + e.movementX,
+          y: prev.y + e.movementY
+        }));
+      }
     };
 
     const handleMouseUp = () => {
       setDraggingId(null);
+      setIsPanning(false);
     };
 
-    if (draggingId) {
+    if (draggingId || isPanning) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
@@ -94,7 +150,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingId, dimensions]);
+  }, [draggingId, isPanning, viewState, dimensions]);
 
   // Define base node positions
   const usBaseNodes = [
@@ -198,173 +254,184 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
   };
 
   return (
-    <div ref={containerRef} className="absolute inset-0 overflow-hidden">
+    <div
+      ref={containerRef}
+      className="absolute inset-0 overflow-hidden bg-[#f8f9fa] cursor-grab active:cursor-grabbing"
+      onMouseDown={() => setIsPanning(true)}
+    >
+      <div
+        className="w-full h-full origin-top-left will-change-transform"
+        style={{
+          transform: `translate(${viewState.x}px, ${viewState.y}px) scale(${viewState.scale})`
+        }}
+      >
+        <svg className="w-full h-full pointer-events-none overflow-visible">
+          {flowType === 'US' ? (
+            <>
+              {renderLink('us-source', 'inventory-1')}
+              {renderLink('us-source', 'inventory-2')}
+              {renderLink('us-source', 'inventory-3')}
 
-      <svg className="w-full h-full pointer-events-none overflow-visible">
-        {flowType === 'US' ? (
-          <>
-            {renderLink('us-source', 'inventory-1')}
-            {renderLink('us-source', 'inventory-2')}
-            {renderLink('us-source', 'inventory-3')}
+              {['proc-1', 'proc-2', 'proc-3', 'proc-4', 'proc-5'].map(p => (
+                <React.Fragment key={p}>
+                  {renderLink('inventory-1', p)}
+                  {renderLink('inventory-2', p)}
+                  {renderLink('inventory-3', p)}
+                </React.Fragment>
+              ))}
 
-            {['proc-1', 'proc-2', 'proc-3', 'proc-4', 'proc-5'].map(p => (
-              <React.Fragment key={p}>
-                {renderLink('inventory-1', p)}
-                {renderLink('inventory-2', p)}
-                {renderLink('inventory-3', p)}
-              </React.Fragment>
-            ))}
+              {renderLink('proc-1', 'finished-1')}
+              {renderLink('proc-2', 'finished-1')}
+              {renderLink('proc-3', 'finished-1')}
+              {renderLink('proc-4', 'finished-2')}
+              {renderLink('proc-5', 'finished-2')}
 
-            {renderLink('proc-1', 'finished-1')}
-            {renderLink('proc-2', 'finished-1')}
-            {renderLink('proc-3', 'finished-1')}
-            {renderLink('proc-4', 'finished-2')}
-            {renderLink('proc-5', 'finished-2')}
+              {renderLink('finished-1', 'customer', '220.77')}
+              {renderLink('finished-2', 'customer', '211.18')}
+            </>
+          ) : (
+            <>
+              {renderLink('cn-source', 'cn-raw')}
+              {renderLink('cn-source', 'cn-inventory-1')}
 
-            {renderLink('finished-1', 'customer', '220.77')}
-            {renderLink('finished-2', 'customer', '211.18')}
-          </>
-        ) : (
-          <>
-            {renderLink('cn-source', 'cn-raw')}
-            {renderLink('cn-source', 'cn-inventory-1')}
+              {renderLink('cn-inventory-1', 'cn-proc-1')}
+              {renderLink('cn-inventory-1', 'cn-proc-2')}
 
-            {renderLink('cn-inventory-1', 'cn-proc-1')}
-            {renderLink('cn-inventory-1', 'cn-proc-2')}
+              {renderLink('cn-raw', 'cn-proc-2')}
+              {renderLink('cn-raw', 'cn-mfg-1')}
 
-            {renderLink('cn-raw', 'cn-proc-2')}
-            {renderLink('cn-raw', 'cn-mfg-1')}
+              {renderLink('cn-proc-1', 'cn-inventory-2')}
+              {renderLink('cn-proc-2', 'cn-inventory-2')}
 
-            {renderLink('cn-proc-1', 'cn-inventory-2')}
-            {renderLink('cn-proc-2', 'cn-inventory-2')}
+              {renderLink('cn-inventory-2', 'cn-proc-3')}
 
-            {renderLink('cn-inventory-2', 'cn-proc-3')}
+              {renderLink('cn-mfg-1', 'cn-proc-3')}
+              {renderLink('cn-mfg-1', 'cn-mfg-2')}
 
-            {renderLink('cn-mfg-1', 'cn-proc-3')}
-            {renderLink('cn-mfg-1', 'cn-mfg-2')}
+              {renderLink('cn-proc-3', 'cn-export-1')}
+              {renderLink('cn-proc-3', 'cn-export-2')}
 
-            {renderLink('cn-proc-3', 'cn-export-1')}
-            {renderLink('cn-proc-3', 'cn-export-2')}
+              {renderLink('cn-mfg-2', 'cn-export-1')}
+              {renderLink('cn-mfg-2', 'cn-export-2')}
 
-            {renderLink('cn-mfg-2', 'cn-export-1')}
-            {renderLink('cn-mfg-2', 'cn-export-2')}
+              {renderLink('cn-export-1', 'cn-customer')}
+              {renderLink('cn-export-2', 'cn-customer')}
+            </>
+          )}
+        </svg>
 
-            {renderLink('cn-export-1', 'cn-customer')}
-            {renderLink('cn-export-2', 'cn-customer')}
-          </>
-        )}
-      </svg>
-
-      {/* Nodes Render */}
-      {nodes.map(node => (
-        <div
-          key={node.id}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setDraggingId(node.id);
-          }}
-          className={`absolute flex flex-col items-center gap-1 group pointer-events-auto cursor-pointer z-10 select-none ${draggingId === node.id ? 'z-50 scale-110' : 'transition-transform hover:scale-110'}`}
-          style={{
-            left: `${node.x}%`,
-            top: `${node.y}%`,
-            transform: 'translate(-50%, -50%)',
-            cursor: draggingId ? 'grabbing' : 'grab'
-          }}
-        >
-          {/* Node Icon Box */}
+        {/* Nodes Render */}
+        {nodes.map(node => (
           <div
-            className={`relative w-9 h-9 rounded-sm border-[1.5px] bg-white flex items-center justify-center shadow-md transition-all ${node.type === 'inventory' ? 'rounded-md' :
-              node.type === 'process' ? 'rounded-sm' : 'rounded-full'
-              } ${
-              // Highlight banned nodes
-              (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
-                (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-                (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
-                ? 'border-red-500 border-[3px] animate-pulse bg-red-50'
-                : ''
-              }`}
+            key={node.id}
+            onMouseDown={(e) => {
+              e.stopPropagation(); // Stop panning when dragging starts
+              e.preventDefault();
+              setDraggingId(node.id);
+            }}
+            className={`absolute flex flex-col items-center gap-1 group pointer-events-auto cursor-pointer z-10 select-none ${draggingId === node.id ? 'z-50 scale-110' : 'transition-transform hover:scale-110'}`}
             style={{
-              borderColor: (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
-                (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-                (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
-                ? '#ef4444'
-                : node.color
+              left: `${node.x}%`,
+              top: `${node.y}%`,
+              transform: 'translate(-50%, -50%)',
+              cursor: draggingId ? 'grabbing' : 'grab'
             }}
           >
-            <node.icon className="w-5 h-5" style={{
-              color: (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
+            {/* Node Icon Box */}
+            <div
+              className={`relative w-9 h-9 rounded-sm border-[1.5px] bg-white flex items-center justify-center shadow-md transition-all ${node.type === 'inventory' ? 'rounded-md' :
+                node.type === 'process' ? 'rounded-sm' : 'rounded-full'
+                } ${
+                // Highlight banned nodes
+                (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
+                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
+                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
+                  ? 'border-red-500 border-[3px] animate-pulse bg-red-50'
+                  : ''
+                }`}
+              style={{
+                borderColor: (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
+                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
+                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
+                  ? '#ef4444'
+                  : node.color
+              }}
+            >
+              <node.icon className="w-5 h-5" style={{
+                color: (state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
+                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
+                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
+                  ? '#ef4444'
+                  : node.color
+              }} strokeWidth={2.5} />
+
+              {/* Export Ban Badge */}
+              {((state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
                 (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-                (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
-                ? '#ef4444'
-                : node.color
-            }} strokeWidth={2.5} />
-
-            {/* Export Ban Badge */}
-            {((state.usStrategy === 'EXPORT_BANS' && node.id === 'inventory-1') ||
-              (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-              (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')) && (
-                <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[6px] px-1.5 py-0.5 rounded-full font-black shadow-lg border border-white">
-                  BANNED
-                </div>
-              )}
-
-            {/* Tariff Warning Triangle */}
-            {node.type === 'process' && (
-              (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')) ||
-              (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS'))
-            ) && (
-                <div className="absolute -top-8 -right-8 z-20 drop-shadow-sm">
-                  <TriangleAlert className="w-6 h-6 fill-[#fab005] text-white" strokeWidth={1.5} />
-                </div>
-              )}
-
-            {/* Blockade Icon for Finished Goods (Tariffs & Bans) */}
-            {['finished-1', 'finished-2', 'cn-export-1', 'cn-export-2'].includes(node.id) && (
-              (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')) ||
-              (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS'))
-            ) && (
-                <div className="absolute -top-7 -right-7 z-20 drop-shadow-sm">
-                  <div className="bg-emerald-600 text-white p-0.5 rounded-full border border-white">
-                    <ShieldBan className="w-4 h-4" strokeWidth={2} />
+                (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')) && (
+                  <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[6px] px-1.5 py-0.5 rounded-full font-black shadow-lg border border-white">
+                    BANNED
                   </div>
-                </div>
-              )}
+                )}
+
+              {/* Tariff Warning Triangle */}
+              {node.type === 'process' && (
+                (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')) ||
+                (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS'))
+              ) && (
+                  <div className="absolute -top-8 -right-8 z-20 drop-shadow-sm">
+                    <TriangleAlert className="w-6 h-6 fill-[#fab005] text-white" strokeWidth={1.5} />
+                  </div>
+                )}
+
+              {/* Blockade Icon for Finished Goods (Tariffs & Bans) */}
+              {['finished-1', 'finished-2', 'cn-export-1', 'cn-export-2'].includes(node.id) && (
+                (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')) ||
+                (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS'))
+              ) && (
+                  <div className="absolute -top-7 -right-7 z-20 drop-shadow-sm">
+                    <div className="bg-emerald-600 text-white p-0.5 rounded-full border border-white">
+                      <ShieldBan className="w-4 h-4" strokeWidth={2} />
+                    </div>
+                  </div>
+                )}
 
 
 
 
 
-            {/* Red Blinking Alert for Consumer (Impact Warning) */}
-            {node.type === 'customer' && (
-              (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS' || state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')
-            ) && (
-                <div className="absolute -top-6 -right-6 z-20 drop-shadow-sm animate-pulse">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="w-7 h-7 text-red-600"
-                  >
-                    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" className="invisible" />
-                    <path d="M12 6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 1 1-3 0v-7A1.5 1.5 0 0 1 12 6Zm0 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-                  </svg>
-                </div>
-              )}
-          </div>
-
-          {/* Label Card */}
-          <div className="bg-white border border-[#dee2e6] rounded-sm px-2 py-0.5 shadow-sm min-w-[60px] text-center">
-            <span className="text-[9px] font-bold text-[#495057] whitespace-nowrap">{node.label}</span>
-          </div>
-
-          {/* Sub-label for customer node */}
-          {node.type === 'customer' && (
-            <div className="bg-[#dee2e6] text-[#495057] text-[7px] font-bold px-1 rounded-sm uppercase tracking-tighter">
-              30 Entities [IMPR...]
+              {/* Red Blinking Alert for Consumer (Impact Warning) */}
+              {node.type === 'customer' && (
+                (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS' || state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')
+              ) && (
+                  <div className="absolute -top-6 -right-6 z-20 drop-shadow-sm animate-pulse">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-7 h-7 text-red-600"
+                    >
+                      <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" className="invisible" />
+                      <path d="M12 6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 1 1-3 0v-7A1.5 1.5 0 0 1 12 6Zm0 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+                    </svg>
+                  </div>
+                )}
             </div>
-          )}
-        </div>
-      ))}
+
+            {/* Label Card */}
+            <div className="bg-white border border-[#dee2e6] rounded-sm px-2 py-0.5 shadow-sm min-w-[60px] text-center">
+              <span className="text-[9px] font-bold text-[#495057] whitespace-nowrap">{node.label}</span>
+            </div>
+
+            {/* Sub-label for customer node */}
+            {node.type === 'customer' && (
+              <div className="bg-[#dee2e6] text-[#495057] text-[7px] font-bold px-1 rounded-sm uppercase tracking-tighter">
+                30 Entities [IMPR...]
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
