@@ -379,10 +379,10 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
                   </div>
                 )}
 
-              {/* Tariff Warning Triangle */}
+              {/* Tariff/Ban Warning Triangle */}
               {node.type === 'process' && (
-                (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')) ||
-                (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS'))
+                (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS' || state.usStrategy === 'EXPORT_BANS')) ||
+                (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS' || state.chinaStrategy === 'EXPORT_BANS'))
               ) && (
                   <div className="absolute -top-8 -right-8 z-20 drop-shadow-sm">
                     <TriangleAlert className="w-6 h-6 fill-[#fab005] text-white" strokeWidth={1.5} />
