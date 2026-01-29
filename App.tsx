@@ -436,308 +436,302 @@ const App: React.FC = () => {
                         Game Log
                       </button>
                     </div>
-                    <div className="ml-auto flex items-center gap-3">
+                    <div className="ml-auto flex items-center gap-2 pr-1">
+                      {/* Red: Close/Collapse */}
                       <div
-                        className="py-2 px-1 cursor-pointer group"
+                        className="w-3 h-3 rounded-full bg-[#ff5f57] border border-[#e0443e] cursor-pointer hover:bg-[#ff3b30] shadow-sm transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsPanelCollapsed(true);
+                        }}
+                        title="Close Panel"
+                      />
+                      {/* Yellow: Reset to Medium */}
+                      <div
+                        className="w-3 h-3 rounded-full bg-[#febc2e] border border-[#d89e24] cursor-pointer hover:bg-[#ffcc00] shadow-sm transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           setIsPanelMaximized(false);
                           setIsPanelCollapsed(false);
                           setPanelHeight(300);
                         }}
-                        title="Medium size"
-                      >
-                        <div className="w-4 h-0.5 bg-[#adb5bd] group-hover:bg-[#228be6] transition-colors rounded-full" />
-                      </div>
-                    </div>
-                    <Maximize2
-                      className={`w-3 h-3 cursor-pointer transition-colors ${isPanelMaximized ? 'text-[#228be6]' : 'text-[#adb5bd] hover:text-[#228be6]'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isPanelMaximized) {
-                          setIsPanelMaximized(false);
-                          setIsPanelCollapsed(true);
-                        } else {
+                        title="Restore Default Size"
+                      />
+                      {/* Green: Maximize */}
+                      <div
+                        className="w-3 h-3 rounded-full bg-[#28c840] border border-[#1aab29] cursor-pointer hover:bg-[#32d74b] shadow-sm transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setIsPanelMaximized(true);
                           setIsPanelCollapsed(false);
-                          setPanelHeight(300);
-                        }
-                      }}
-                      title="Maximize"
-                    />
-                    <X
-                      className="w-3.5 h-3.5 cursor-pointer text-[#adb5bd] hover:text-red-500 transition-colors"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsPanelCollapsed(true);
-                      }}
-                      title="Close Panel"
-                    />
-                  </div>
-                </div>
-                <div className="flex-1 p-4 flex gap-6">
-                  {bottomTab === 'trends' && (
-                    <div className="w-64 shrink-0 flex flex-col gap-1.5 overflow-y-auto no-scrollbar border-r border-[#f1f3f5] pr-4">
-                      <button
-                        onClick={() => setActiveMetric('pts_us')}
-                        className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_us'
-                          ? 'bg-[#e7f5ff] border-[#74c0fc]'
-                          : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
-                          }`}
-                      >
-                        <div className={`font-bold leading-tight ${activeMetric === 'pts_us' ? 'text-[#1971c2]' : 'text-[#495057]'}`}>@pts_us</div>
-                        <div className={`text-[9px] leading-tight ${activeMetric === 'pts_us' ? 'text-[#1971c2]' : 'text-[#868e96]'}`}>United States</div>
-                      </button>
-
-                      <button
-                        onClick={() => setActiveMetric('pts_china')}
-                        className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_china'
-                          ? 'bg-[#fff5f5] border-[#ff8787]'
-                          : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
-                          }`}
-                      >
-                        <div className={`font-bold leading-tight ${activeMetric === 'pts_china' ? 'text-[#e03131]' : 'text-[#495057]'}`}>@pts_china</div>
-                        <div className={`text-[9px] leading-tight ${activeMetric === 'pts_china' ? 'text-[#e03131]' : 'text-[#868e96]'}`}>China</div>
-                      </button>
-
-                      <button
-                        onClick={() => setActiveMetric('inflation_index')}
-                        className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'inflation_index'
-                          ? 'bg-[#f8f9fa] border-[#adb5bd]'
-                          : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
-                          }`}
-                      >
-                        <div className={`font-bold leading-tight ${activeMetric === 'inflation_index' ? 'text-[#495057]' : 'text-[#495057]'}`}>@inflation_index</div>
-                        <div className={`text-[9px] leading-tight ${activeMetric === 'inflation_index' ? 'text-[#495057]' : 'text-[#868e96]'}`}>Global Average</div>
-                      </button>
+                        }}
+                        title="Maximize"
+                      />
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0 h-full">
-                    {bottomTab === 'trends' ? (
-                      <TrendChart payoff={currentPayoff} metric={activeMetric} />
-                    ) : bottomTab === 'matrix' ? (
-                      <GameMatrix state={state} />
-                    ) : (
-                      <div className="h-full flex flex-col gap-3 min-h-0">
-                        {/* Cumulative Outcome Summary Header */}
-                        {state.history.length > 0 && (
-                          <div className="shrink-0 bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <div className="bg-slate-100 p-1.5 rounded-md">
-                                  <Terminal className="w-4 h-4 text-slate-600" />
-                                </div>
-                                <h4 className="text-[12px] font-black uppercase tracking-wider text-slate-700">Cumulative Simulation Result</h4>
-                              </div>
-                              <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-black">
-                                <RotateCcw className="w-3 h-3" /> {state.history.length} ROUNDS COMPLETED
-                              </div>
-                            </div>
+                  </div>
+                  <div className="flex-1 p-4 flex gap-6">
+                    {bottomTab === 'trends' && (
+                      <div className="w-64 shrink-0 flex flex-col gap-1.5 overflow-y-auto no-scrollbar border-r border-[#f1f3f5] pr-4">
+                        <button
+                          onClick={() => setActiveMetric('pts_us')}
+                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_us'
+                            ? 'bg-[#e7f5ff] border-[#74c0fc]'
+                            : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
+                            }`}
+                        >
+                          <div className={`font-bold leading-tight ${activeMetric === 'pts_us' ? 'text-[#1971c2]' : 'text-[#495057]'}`}>@pts_us</div>
+                          <div className={`text-[9px] leading-tight ${activeMetric === 'pts_us' ? 'text-[#1971c2]' : 'text-[#868e96]'}`}>United States</div>
+                        </button>
 
-                            {(() => {
-                              // Calculate cumulative points
-                              const usTotal = state.history.reduce((sum, h) => sum + h.payoff.us.points, 0);
-                              const chinaTotal = state.history.reduce((sum, h) => sum + h.payoff.china.points, 0);
-                              const avgDiff = (usTotal - chinaTotal) / state.history.length;
+                        <button
+                          onClick={() => setActiveMetric('pts_china')}
+                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_china'
+                            ? 'bg-[#fff5f5] border-[#ff8787]'
+                            : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
+                            }`}
+                        >
+                          <div className={`font-bold leading-tight ${activeMetric === 'pts_china' ? 'text-[#e03131]' : 'text-[#495057]'}`}>@pts_china</div>
+                          <div className={`text-[9px] leading-tight ${activeMetric === 'pts_china' ? 'text-[#e03131]' : 'text-[#868e96]'}`}>China</div>
+                        </button>
 
-                              let status = "STALEMATE";
-                              let desc = "Equilibrium maintained through balanced strategic exchange.";
-                              let icon = <ShieldAlert className="w-6 h-6 text-slate-400" />;
-                              let colorClass = "bg-slate-50 border-slate-200 text-slate-700";
-
-                              if (usTotal / state.history.length < 3 && chinaTotal / state.history.length < 3) {
-                                status = "MUTUAL ATTRITION";
-                                desc = "High-intensity escalation has significantly degraded both economies.";
-                                icon = <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />;
-                                colorClass = "bg-amber-50 border-amber-200 text-amber-900";
-                              } else if (avgDiff > 0.8) {
-                                status = "US STRATEGIC LEAD";
-                                desc = "The US has successfully contained escalation while preserving growth.";
-                                icon = <Target className="w-6 h-6 text-blue-500" />;
-                                colorClass = "bg-blue-50 border-blue-200 text-blue-900";
-                              } else if (avgDiff < -0.8) {
-                                status = "CHINA STRATEGIC LEAD";
-                                desc = "China has navigated restrictions while maintaining a relative advantage.";
-                                icon = <Brain className="w-6 h-6 text-red-500" />;
-                                colorClass = "bg-red-50 border-red-200 text-red-900";
-                              }
-
-                              return (
-                                <div className={`flex items-center gap-6 p-4 rounded-xl border-2 ${colorClass}`}>
-                                  <div className="bg-white p-3 rounded-full shadow-sm">
-                                    {icon}
-                                  </div>
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-4">
-                                      <span className="text-[20px] font-black tracking-tight uppercase leading-none">{status}</span>
-                                      <div className="flex items-center gap-4 ml-auto font-black text-[16px]">
-                                        <div className="flex flex-col items-center">
-                                          <span className="text-[10px] opacity-60 font-black uppercase tracking-widest">TOTAL UNITED STATES</span>
-                                          <span>{usTotal.toFixed(1)}</span>
-                                        </div>
-                                        <div className="w-px h-6 bg-current opacity-20" />
-                                        <div className="flex flex-col items-center">
-                                          <span className="text-[10px] opacity-60 font-black uppercase tracking-widest">TOTAL CN</span>
-                                          <span>{chinaTotal.toFixed(1)}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <p className="text-[13px] font-bold opacity-80 mt-1">{desc}</p>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-
-                        {/* History Timeline */}
-                        <div className="flex-1 overflow-y-auto pr-1 space-y-3">
-                          {state.history.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center opacity-40 py-10">
-                              <History className="w-10 h-10 mb-2" />
-                              <p className="text-[12px] font-black uppercase tracking-widest">No history recorded</p>
-                              <p className="text-[10px] mt-2 text-center max-w-[200px]">Advance the round to start the simulation log.</p>
-                            </div>
-                          ) : (
-                            [...state.history].reverse().map((entry, index) => (
-                              <div key={index} className="flex gap-4 group">
-                                <div className="flex flex-col items-center">
-                                  <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[11px] font-black text-slate-500 shrink-0">
-                                    {entry.round}
-                                  </div>
-                                  {index !== state.history.length - 1 && <div className="w-px flex-1 bg-slate-200 my-1.5" />}
-                                </div>
-                                <div className="flex-1 bg-white border border-slate-100 rounded-xl p-3 shadow-sm group-hover:border-slate-300 group-hover:shadow-md transition-all">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex gap-6">
-                                      <div className="flex flex-col">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">UNITED STATES MOVE</span>
-                                        <span className={`text-[12px] font-black ${entry.usStrategy === 'FREE_TRADE' ? 'text-emerald-600' : 'text-blue-600'}`}>{entry.usStrategy.replace('_', ' ')}</span>
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">CN MOVE</span>
-                                        <span className={`text-[12px] font-black ${entry.chinaStrategy === 'FREE_TRADE' ? 'text-emerald-600' : 'text-red-600'}`}>{entry.chinaStrategy.replace('_', ' ')}</span>
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">OUTCOME</span>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[14px] font-black text-blue-600">{entry.payoff.us.points.toFixed(1)}</span>
-                                        <span className="text-[10px] font-bold text-slate-300">vs</span>
-                                        <span className="text-[14px] font-black text-red-600">{entry.payoff.china.points.toFixed(1)}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="mt-2 text-[11px] text-slate-500 font-bold italic leading-relaxed border-t border-slate-50 pt-2 opacity-90">
-                                    {entry.payoff.description}
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
+                        <button
+                          onClick={() => setActiveMetric('inflation_index')}
+                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'inflation_index'
+                            ? 'bg-[#f8f9fa] border-[#adb5bd]'
+                            : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
+                            }`}
+                        >
+                          <div className={`font-bold leading-tight ${activeMetric === 'inflation_index' ? 'text-[#495057]' : 'text-[#495057]'}`}>@inflation_index</div>
+                          <div className={`text-[9px] leading-tight ${activeMetric === 'inflation_index' ? 'text-[#495057]' : 'text-[#868e96]'}`}>Global Average</div>
+                        </button>
                       </div>
                     )}
+                    <div className="flex-1 min-w-0 h-full">
+                      {bottomTab === 'trends' ? (
+                        <TrendChart payoff={currentPayoff} metric={activeMetric} />
+                      ) : bottomTab === 'matrix' ? (
+                        <GameMatrix state={state} />
+                      ) : (
+                        <div className="h-full flex flex-col gap-3 min-h-0">
+                          {/* Cumulative Outcome Summary Header */}
+                          {state.history.length > 0 && (
+                            <div className="shrink-0 bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="bg-slate-100 p-1.5 rounded-md">
+                                    <Terminal className="w-4 h-4 text-slate-600" />
+                                  </div>
+                                  <h4 className="text-[12px] font-black uppercase tracking-wider text-slate-700">Cumulative Simulation Result</h4>
+                                </div>
+                                <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-black">
+                                  <RotateCcw className="w-3 h-3" /> {state.history.length} ROUNDS COMPLETED
+                                </div>
+                              </div>
+
+                              {(() => {
+                                // Calculate cumulative points
+                                const usTotal = state.history.reduce((sum, h) => sum + h.payoff.us.points, 0);
+                                const chinaTotal = state.history.reduce((sum, h) => sum + h.payoff.china.points, 0);
+                                const avgDiff = (usTotal - chinaTotal) / state.history.length;
+
+                                let status = "STALEMATE";
+                                let desc = "Equilibrium maintained through balanced strategic exchange.";
+                                let icon = <ShieldAlert className="w-6 h-6 text-slate-400" />;
+                                let colorClass = "bg-slate-50 border-slate-200 text-slate-700";
+
+                                if (usTotal / state.history.length < 3 && chinaTotal / state.history.length < 3) {
+                                  status = "MUTUAL ATTRITION";
+                                  desc = "High-intensity escalation has significantly degraded both economies.";
+                                  icon = <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />;
+                                  colorClass = "bg-amber-50 border-amber-200 text-amber-900";
+                                } else if (avgDiff > 0.8) {
+                                  status = "US STRATEGIC LEAD";
+                                  desc = "The US has successfully contained escalation while preserving growth.";
+                                  icon = <Target className="w-6 h-6 text-blue-500" />;
+                                  colorClass = "bg-blue-50 border-blue-200 text-blue-900";
+                                } else if (avgDiff < -0.8) {
+                                  status = "CHINA STRATEGIC LEAD";
+                                  desc = "China has navigated restrictions while maintaining a relative advantage.";
+                                  icon = <Brain className="w-6 h-6 text-red-500" />;
+                                  colorClass = "bg-red-50 border-red-200 text-red-900";
+                                }
+
+                                return (
+                                  <div className={`flex items-center gap-6 p-4 rounded-xl border-2 ${colorClass}`}>
+                                    <div className="bg-white p-3 rounded-full shadow-sm">
+                                      {icon}
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-4">
+                                        <span className="text-[20px] font-black tracking-tight uppercase leading-none">{status}</span>
+                                        <div className="flex items-center gap-4 ml-auto font-black text-[16px]">
+                                          <div className="flex flex-col items-center">
+                                            <span className="text-[10px] opacity-60 font-black uppercase tracking-widest">TOTAL UNITED STATES</span>
+                                            <span>{usTotal.toFixed(1)}</span>
+                                          </div>
+                                          <div className="w-px h-6 bg-current opacity-20" />
+                                          <div className="flex flex-col items-center">
+                                            <span className="text-[10px] opacity-60 font-black uppercase tracking-widest">TOTAL CN</span>
+                                            <span>{chinaTotal.toFixed(1)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <p className="text-[13px] font-bold opacity-80 mt-1">{desc}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+
+                          {/* History Timeline */}
+                          <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+                            {state.history.length === 0 ? (
+                              <div className="h-full flex flex-col items-center justify-center opacity-40 py-10">
+                                <History className="w-10 h-10 mb-2" />
+                                <p className="text-[12px] font-black uppercase tracking-widest">No history recorded</p>
+                                <p className="text-[10px] mt-2 text-center max-w-[200px]">Advance the round to start the simulation log.</p>
+                              </div>
+                            ) : (
+                              [...state.history].reverse().map((entry, index) => (
+                                <div key={index} className="flex gap-4 group">
+                                  <div className="flex flex-col items-center">
+                                    <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[11px] font-black text-slate-500 shrink-0">
+                                      {entry.round}
+                                    </div>
+                                    {index !== state.history.length - 1 && <div className="w-px flex-1 bg-slate-200 my-1.5" />}
+                                  </div>
+                                  <div className="flex-1 bg-white border border-slate-100 rounded-xl p-3 shadow-sm group-hover:border-slate-300 group-hover:shadow-md transition-all">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex gap-6">
+                                        <div className="flex flex-col">
+                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">UNITED STATES MOVE</span>
+                                          <span className={`text-[12px] font-black ${entry.usStrategy === 'FREE_TRADE' ? 'text-emerald-600' : 'text-blue-600'}`}>{entry.usStrategy.replace('_', ' ')}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">CN MOVE</span>
+                                          <span className={`text-[12px] font-black ${entry.chinaStrategy === 'FREE_TRADE' ? 'text-emerald-600' : 'text-red-600'}`}>{entry.chinaStrategy.replace('_', ' ')}</span>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">OUTCOME</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-[14px] font-black text-blue-600">{entry.payoff.us.points.toFixed(1)}</span>
+                                          <span className="text-[10px] font-bold text-slate-300">vs</span>
+                                          <span className="text-[14px] font-black text-red-600">{entry.payoff.china.points.toFixed(1)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="mt-2 text-[11px] text-slate-500 font-bold italic leading-relaxed border-t border-slate-50 pt-2 opacity-90">
+                                      {entry.payoff.description}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-        </>
-        ) : (
-        <TradeRoutes state={state} />
-          )}
-      </main>
-
-      {/* Right Sidebar (Config) */}
-      <aside className="w-80 border-l border-[#dfe3e6] bg-white flex flex-col shrink-0">
-        <div className="h-12 border-b border-[#dee2e6] flex items-center px-4 gap-6 shrink-0">
-          <button
-            onClick={() => setActiveTab('config')}
-            className={`text-[11px] font-bold uppercase tracking-wider h-12 ${activeTab === 'config' ? 'text-[#228be6] border-b-2 border-[#228be6]' : 'text-[#adb5bd]'}`}
-          >
-            Model Config
-          </button>
-          <button
-            onClick={() => setActiveTab('intel')}
-            className={`text-[11px] font-bold uppercase tracking-wider h-12 ${activeTab === 'intel' ? 'text-[#228be6] border-b-2 border-[#228be6]' : 'text-[#adb5bd]'}`}
-          >
-            Simulation
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#f8f9fa]/50">
-          {activeTab === 'config' ? (
-            <>
-
-
-              <section>
-                <label className="text-[10px] font-black text-[#868e96] uppercase tracking-widest block mb-2">Policy Levers</label>
-                <div className="flex flex-col gap-6">
-                  <StrategyToggle
-                    label="United States Protocol"
-                    value={state.usStrategy}
-                    focusValue={state.usBanFocus}
-                    onChange={(s) => setState(prev => ({ ...prev, usStrategy: s }))}
-                    onFocusChange={(f) => setState(prev => ({ ...prev, usBanFocus: f }))}
-                    accentColor="blue"
-                    options={['AI_CHIPS', 'CHIP_GEAR', 'CLOUD_TECH']}
-                  />
-
-                  <div className="h-px bg-slate-100" />
-
-                  <StrategyToggle
-                    label="China Protocol"
-                    value={state.chinaStrategy}
-                    focusValue={state.chinaBanFocus}
-                    onChange={(s) => setState(prev => ({ ...prev, chinaStrategy: s }))}
-                    onFocusChange={(f) => setState(prev => ({ ...prev, chinaBanFocus: f }))}
-                    accentColor="red"
-                    options={['RARE_EARTHS', 'EV_MINERALS', 'LEGACY_CHIPS']}
-                  />
-                </div>
-              </section>
             </>
           ) : (
-            <div className="space-y-4">
-              <AIAdvisor state={state} scenario={SCENARIOS[state.scenario]} />
-              <div className="bg-white border border-[#dee2e6] p-4 rounded-lg shadow-sm">
-                <h4 className="text-[11px] font-bold text-[#495057] uppercase mb-3 flex items-center gap-2">
-                  <History className="w-3 h-3" /> Graph History
-                </h4>
-                <div className="space-y-2">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="text-[10px] p-2 bg-[#f8f9fa] rounded flex items-center justify-between border border-[#f1f3f5]">
-                      <span className="text-[#495057]">Checkpoint v1.{i}</span>
-                      <span className="text-[#adb5bd]">2m ago</span>
-                    </div>
-                  ))}
+            <TradeRoutes state={state} />
+          )}
+        </main>
+
+        {/* Right Sidebar (Config) */}
+        <aside className="w-80 border-l border-[#dfe3e6] bg-white flex flex-col shrink-0">
+          <div className="h-12 border-b border-[#dee2e6] flex items-center px-4 gap-6 shrink-0">
+            <button
+              onClick={() => setActiveTab('config')}
+              className={`text-[11px] font-bold uppercase tracking-wider h-12 ${activeTab === 'config' ? 'text-[#228be6] border-b-2 border-[#228be6]' : 'text-[#adb5bd]'}`}
+            >
+              Model Config
+            </button>
+            <button
+              onClick={() => setActiveTab('intel')}
+              className={`text-[11px] font-bold uppercase tracking-wider h-12 ${activeTab === 'intel' ? 'text-[#228be6] border-b-2 border-[#228be6]' : 'text-[#adb5bd]'}`}
+            >
+              Simulation
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#f8f9fa]/50">
+            {activeTab === 'config' ? (
+              <>
+
+
+                <section>
+                  <label className="text-[10px] font-black text-[#868e96] uppercase tracking-widest block mb-2">Policy Levers</label>
+                  <div className="flex flex-col gap-6">
+                    <StrategyToggle
+                      label="United States Protocol"
+                      value={state.usStrategy}
+                      focusValue={state.usBanFocus}
+                      onChange={(s) => setState(prev => ({ ...prev, usStrategy: s }))}
+                      onFocusChange={(f) => setState(prev => ({ ...prev, usBanFocus: f }))}
+                      accentColor="blue"
+                      options={['AI_CHIPS', 'CHIP_GEAR', 'CLOUD_TECH']}
+                    />
+
+                    <div className="h-px bg-slate-100" />
+
+                    <StrategyToggle
+                      label="China Protocol"
+                      value={state.chinaStrategy}
+                      focusValue={state.chinaBanFocus}
+                      onChange={(s) => setState(prev => ({ ...prev, chinaStrategy: s }))}
+                      onFocusChange={(f) => setState(prev => ({ ...prev, chinaBanFocus: f }))}
+                      accentColor="red"
+                      options={['RARE_EARTHS', 'EV_MINERALS', 'LEGACY_CHIPS']}
+                    />
+                  </div>
+                </section>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <AIAdvisor state={state} scenario={SCENARIOS[state.scenario]} />
+                <div className="bg-white border border-[#dee2e6] p-4 rounded-lg shadow-sm">
+                  <h4 className="text-[11px] font-bold text-[#495057] uppercase mb-3 flex items-center gap-2">
+                    <History className="w-3 h-3" /> Graph History
+                  </h4>
+                  <div className="space-y-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="text-[10px] p-2 bg-[#f8f9fa] rounded flex items-center justify-between border border-[#f1f3f5]">
+                        <span className="text-[#495057]">Checkpoint v1.{i}</span>
+                        <span className="text-[#adb5bd]">2m ago</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Side HUD Footer */}
+          <div className="border-t border-[#dee2e6] p-4 space-y-2 bg-white">
+            <EconomyHUD country="United States" state={currentPayoff.us} color="blue" />
+            <EconomyHUD country="China" state={currentPayoff.china} color="red" />
+
+          </div>
+        </aside>
+      </div>
+
+      {/* Tiny Status Footer */}
+      <footer className="h-6 bg-[#1c1e21] flex items-center px-4 justify-between text-[10px] text-[#adb5bd] font-medium shrink-0">
+        <div className="flex gap-4">
+          <span>Project: GEOPOLITICAL_CORE_V4</span>
+          <span>Workspace: Main Flow</span>
         </div>
-
-        {/* Side HUD Footer */}
-        <div className="border-t border-[#dee2e6] p-4 space-y-2 bg-white">
-          <EconomyHUD country="United States" state={currentPayoff.us} color="blue" />
-          <EconomyHUD country="China" state={currentPayoff.china} color="red" />
-
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#37b24d]" />
+          <span className="text-[#f8f9fa]">READY</span>
         </div>
-      </aside>
+      </footer>
     </div>
-
-      {/* Tiny Status Footer */ }
-  <footer className="h-6 bg-[#1c1e21] flex items-center px-4 justify-between text-[10px] text-[#adb5bd] font-medium shrink-0">
-    <div className="flex gap-4">
-      <span>Project: GEOPOLITICAL_CORE_V4</span>
-      <span>Workspace: Main Flow</span>
-    </div>
-    <div className="flex items-center gap-2">
-      <div className="w-1.5 h-1.5 rounded-full bg-[#37b24d]" />
-      <span className="text-[#f8f9fa]">READY</span>
-    </div>
-  </footer>
-    </div >
   );
 };
 

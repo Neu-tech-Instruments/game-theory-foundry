@@ -99,7 +99,11 @@ export const calculatePayoff = (state: GameState): Payoff => {
   let description = '';
 
   if (Math.abs(diff) < 0.5) {
-    description = 'Balanced outcome - Both economies maintain equilibrium';
+    if (us.points <= 6) {
+      description = 'Lose-Lose outcome';
+    } else {
+      description = 'Balanced outcome';
+    }
   } else if (diff > 2.5) {
     description = 'US wins decisively - China suffers significant economic damage';
   } else if (diff > 1.0) {
