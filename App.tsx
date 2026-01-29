@@ -544,7 +544,7 @@ const App: React.FC = () => {
 
                                 if (usTotal / state.history.length < 3 && chinaTotal / state.history.length < 3) {
                                   status = "MUTUAL ATTRITION";
-                                  desc = "High-intensity escalation has significantly degraded both economies.";
+                                  desc = "Economic Catastrophe: Decoupling complete; global recession.";
                                   icon = <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />;
                                   colorClass = "bg-amber-50 border-amber-200 text-amber-900";
                                 } else if (avgDiff > 0.8) {

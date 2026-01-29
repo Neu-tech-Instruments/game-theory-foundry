@@ -114,18 +114,18 @@ export const calculatePayoff = (state: GameState): Payoff => {
     description = 'Total Equalization - Previous strategic advantages have been neutralized.';
   } else if (Math.abs(diff) < 0.5) {
     if (us.points <= 6) {
-      description = 'Lose-Lose outcome';
+      description = 'Nash Equilibrium: Both retaliate; mutual loss.';
     } else {
-      description = 'Balanced outcome';
+      description = 'Global Optimum: Maximum growth for both.';
     }
   } else if (diff > 2.5) {
-    description = 'US wins decisively - China suffers significant economic damage';
+    description = 'US protects jobs; China loses export revenue.';
   } else if (diff > 1.0) {
     description = 'US wins - China experiences moderate economic pressure';
   } else if (diff > 0) {
     description = 'US gains slight advantage - China faces minor setbacks';
   } else if (diff < -2.5) {
-    description = 'China wins decisively - US suffers significant economic damage';
+    description = 'US loses manufacturing; China gains via protectionism.';
   } else if (diff < -1.0) {
     description = 'China wins - US experiences moderate economic pressure';
   } else {
