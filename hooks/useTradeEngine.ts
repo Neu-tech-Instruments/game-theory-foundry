@@ -13,9 +13,21 @@ export const calculatePayoff = (state: GameState): Payoff => {
   const chinaTariff = state.chinaStrategy === 'TARIFFS';
 
   if (usTariff && chinaTariff) {
-    // Nash Equilibrium: Both retaliate (5, 5)
-    us.points = 5.0;
-    china.points = 5.0;
+    // Nash Equilibrium: Both retaliate (Typically 5, 5)
+    // NEW LOGIC: Equalizer. If we are in a trade war, the advantages are wiped out.
+    // Calculate current cumulative stats to determine catch-up needed.
+    const usTotal = state.history.reduce((sum, h) => sum + h.payoff.us.points, 0);
+    const chinaTotal = state.history.reduce((sum, h) => sum + h.payoff.china.points, 0);
+
+    // We want (usTotal + usRound) === (chinaTotal + chinaRound)
+    // And base is 5, 5.
+    // So usRound = 5 + Correction, chinaRound = 5 - Correction
+    // (usTotal + 5 + C) = (chinaTotal + 5 - C)
+    // 2C = chinaTotal - usTotal
+    const catchUp = (chinaTotal - usTotal) / 2;
+
+    us.points = 5.0 + catchUp;
+    china.points = 5.0 - catchUp;
 
     us.inflation += 2.0;
     china.inflation += 2.0;
@@ -87,8 +99,8 @@ export const calculatePayoff = (state: GameState): Payoff => {
   const finalizePoints = (pts: number) => {
     // Force to 0.5 increments
     const rounded = Math.round(pts * 2) / 2;
-    // Clamp between 2.0 and 15.0 (Updated to allow 12)
-    return Math.max(2, Math.min(15, rounded));
+    // Clamp between 0.0 and 20.0 (Expanded for equalization swings)
+    return Math.max(0, Math.min(20, rounded));
   };
 
   us.points = finalizePoints(us.points);
@@ -98,7 +110,9 @@ export const calculatePayoff = (state: GameState): Payoff => {
   const diff = us.points - china.points;
   let description = '';
 
-  if (Math.abs(diff) < 0.5) {
+  if (state.usStrategy === 'TARIFFS' && state.chinaStrategy === 'TARIFFS') {
+    description = 'Total Equalization - Previous strategic advantages have been neutralized.';
+  } else if (Math.abs(diff) < 0.5) {
     if (us.points <= 6) {
       description = 'Lose-Lose outcome';
     } else {
