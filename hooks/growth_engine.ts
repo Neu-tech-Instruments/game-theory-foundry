@@ -68,9 +68,10 @@ export const synthesizeProduct = (prompt: string, isImage: boolean = false): { t
         // Branching logic: categories based on depth
         const categories = ['GENESIS', 'ASSEMBLY', 'SUB_SYSTEM', 'MODULE', 'COMPONENT', 'PART', 'ELEMENT'];
         const currentCategory = categories[depth] || 'COMPONENT';
-
+        // Per-depth branching: wide at top, narrows at bottom so total stays ~2500 nodes
+        // d0=12, d1=4, d2=3, d3=3, d4=2, d5=2 → 12×4×3×3×2×2 = 864 non-leaf + leaves ≈ 2600 total
         const subCount = isMega
-            ? (depth === 0 ? 12 : (depth === 1 ? 6 : (depth === 2 ? 4 : 3)))
+            ? ([12, 4, 3, 3, 2, 2][depth] ?? 2)
             : 3;
         return Array.from({ length: subCount }).map((_, i) => {
             const compId = `comp-${depth}-${i}-${Math.random().toString(36).substr(2, 4)}`;
@@ -86,7 +87,7 @@ export const synthesizeProduct = (prompt: string, isImage: boolean = false): { t
         });
     };
 
-    const maxDepth = isMega ? 4 : 2; // Mega: 5 levels (0-4) ≈ 12×6×4×3×3 = ~2,592 leaf nodes max. Standard: 3 levels.
+    const maxDepth = isMega ? 6 : 2; // Mega: 7 levels (GENESIS→ASSEMBLY→SUB_SYSTEM→MODULE→COMPONENT→PART→ELEMENT). Standard: 3.
     const genealogy = expandNode(ucPrompt, 0, maxDepth);
 
     return {

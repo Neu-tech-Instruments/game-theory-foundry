@@ -231,6 +231,22 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
     }, [step]);
   const selectedNetwork = useMemo(() => networks.find(n => n.id === selectedNetworkId), [networks, selectedNetworkId]);
 
+  // Auto-collapse deep nodes on load — only render top 2 layers initially.
+  // Users double-click any node to expand its children tier by tier.
+  // This keeps the DOM at ~60 nodes for Starship instead of 2600.
+  useEffect(() => {
+    if (!selectedNetwork) return;
+    const autoCollapsed = new Set<string>();
+    const walk = (nodes: any[], depth: number) => {
+      nodes.forEach(n => {
+        if (depth >= 2) autoCollapsed.add(n.id);
+        if (n.children) walk(n.children, depth + 1);
+      });
+    };
+    walk(selectedNetwork.genealogy, 0);
+    setCollapsedNodeIds(autoCollapsed);
+  }, [selectedNetwork?.id]); // only re-run when the product changes, not on every re-render
+
   // Assign default positions the first time a network is shown
   const getInitialPosition = (nodeId: string, index: number, total: number, layer: number) => {
     const centerX = 400;
@@ -254,9 +270,6 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
     };
   };
 
-
-// Hard cap: never render more than this many nodes (prevents browser OOM on huge products)
-const MAX_RENDER_NODES = 1500;
 
     // Flatten and Position ALL nodes — no LOD culling (used for bounding box in Center View)
     const allNodesPositioned = useMemo(() => {
@@ -315,9 +328,10 @@ const MAX_RENDER_NODES = 1500;
         });
     };
         walk(positionedGenealogy);
-        // Hard cap — avoid OOM/crash on huge products
-        return flat.length > MAX_RENDER_NODES ? flat.slice(0, MAX_RENDER_NODES) : flat;
+        // No hard cap needed — auto-collapse keeps the visible set small
+        return flat;
     }, [selectedNetwork, collapsedNodeIds]);
+
 
 
   // LOD-filtered view — only nodes inside the current viewport (for rendering performance) + category filter
@@ -343,41 +357,6 @@ const MAX_RENDER_NODES = 1500;
       onGraphStateChange({ allNodes: allNodesPositioned, viewState, setViewState });
     }
   }, [allNodesPositioned, viewState, onGraphStateChange]);
-
-  // Auto-fit to full horizontal view whenever a new network is selected
-  const lastFittedNetworkId = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      !allNodesPositioned.length ||
-      !graphContainerRef.current ||
-      containerSize.width === 0 ||
-      selectedNetworkId === lastFittedNetworkId.current
-    ) return;
-
-    lastFittedNetworkId.current = selectedNetworkId;
-
-    const xs = allNodesPositioned.map((n: any) => n.position.x);
-    const ys = allNodesPositioned.map((n: any) => n.position.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
-    const graphW = maxX - minX + 280; // node width padding
-
-    const cW = containerSize.width;
-    const cH = containerSize.height;
-
-    // Fit horizontally so all layers are visible — prioritise width over height
-    // and enforce a readable zoom range
-    const zoomByWidth = (cW * 0.86) / graphW;
-    const zoom = Math.min(Math.max(zoomByWidth, 0.15), 1.1);
-
-    // Pin genesis (leftmost layer) ~10% from the left edge, centre vertically
-    const panX = (cW * 0.1 / zoom) - minX;
-    const panY = (cH / 2 / zoom) - midY;
-
-    setViewState({ panX, panY, zoom });
-  }, [allNodesPositioned, containerSize, selectedNetworkId]);
-
 
   // Path Highlighting Logic: Identify all ancestors and descendants of a hovered node
   const pathNodeIds = useMemo(() => {
@@ -503,12 +482,12 @@ const MAX_RENDER_NODES = 1500;
                     </button>
                     </div>
 
-                    {/* Truncation warning banner for very large products */}
-                    {allNodesPositioned.length >= MAX_RENDER_NODES && (
-                        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 shadow-sm">
-                            <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
-                            <span className="text-[9px] font-black uppercase tracking-widest text-amber-700">
-                                Rendering top {MAX_RENDER_NODES.toLocaleString()} nodes — use filters to explore specific tiers
+                    {/* Product scale hint — shows when nodes are collapsed */}
+                    {collapsedNodeIds.size > 0 && (
+                        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-slate-900/80 backdrop-blur-md border border-slate-700 rounded-lg px-3 py-1.5 shadow-lg">
+                            <Info className="w-3 h-3 text-blue-400 shrink-0" />
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">
+                                {allNodesPositioned.length} visible — double-click any node to expand its sub-tier
                             </span>
                         </div>
                     )}
