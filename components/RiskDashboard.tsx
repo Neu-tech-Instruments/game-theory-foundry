@@ -360,22 +360,20 @@ const MAX_RENDER_NODES = 1500;
     const ys = allNodesPositioned.map((n: any) => n.position.y);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    const graphW = maxX - minX + 220; // node width padding
-    const graphH = maxY - minY + 180; // node height padding
+    const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const graphW = maxX - minX + 280; // node width padding
 
     const cW = containerSize.width;
     const cH = containerSize.height;
 
-    // Fit zoom so the full graph fills the viewport horizontally (with some margin)
-    const zoomX = (cW * 0.88) / graphW;
-    const zoomY = (cH * 0.82) / graphH;
-    const zoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.08), 1.2);
+    // Fit horizontally so all layers are visible — prioritise width over height
+    // and enforce a readable zoom range
+    const zoomByWidth = (cW * 0.86) / graphW;
+    const zoom = Math.min(Math.max(zoomByWidth, 0.15), 1.1);
 
-    // Center the graph in the canvas
-    const panX = (cW / zoom - graphW) / 2 - minX + 110;
-    const panY = (cH / zoom - graphH) / 2 - minY + 90;
+    // Pin genesis (leftmost layer) ~10% from the left edge, centre vertically
+    const panX = (cW * 0.1 / zoom) - minX;
+    const panY = (cH / 2 / zoom) - midY;
 
     setViewState({ panX, panY, zoom });
   }, [allNodesPositioned, containerSize, selectedNetworkId]);
