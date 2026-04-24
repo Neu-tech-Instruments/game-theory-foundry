@@ -57,7 +57,7 @@ export const synthesizeProduct = (prompt: string, isImage: boolean = false): { t
         if (depth >= maxDepth) {
             // Return elements at leaf nodes
             const rawPool = Object.values(MATERIAL_CLUSTERS).flat();
-            const count = isMega ? 2 : (2 + Math.floor(Math.random() * 2));
+            const count = 3 + Math.floor(Math.random() * 3);
             return Array.from({ length: count }).map((_, i) => ({
                 ...rawPool[Math.floor(Math.random() * rawPool.length)],
                 id: `raw-${depth}-${i}-${Math.random().toString(36).substr(2, 4)}`,
@@ -69,7 +69,7 @@ export const synthesizeProduct = (prompt: string, isImage: boolean = false): { t
         const categories = ['GENESIS', 'ASSEMBLY', 'SUB_SYSTEM', 'MODULE', 'COMPONENT', 'PART', 'ELEMENT'];
         const currentCategory = categories[depth] || 'COMPONENT';
 
-        const subCount = isMega ? (depth === 0 ? 8 : (depth < 3 ? 3 : 2)) : 2;
+        const subCount = isMega ? (depth === 0 ? 12 : (depth < 3 ? 5 : 3)) : 3;
         return Array.from({ length: subCount }).map((_, i) => {
             const compId = `comp-${depth}-${i}-${Math.random().toString(36).substr(2, 4)}`;
             return {

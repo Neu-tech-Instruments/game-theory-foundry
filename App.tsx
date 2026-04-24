@@ -144,11 +144,7 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    try {
-      localStorage.setItem('neural_networks', JSON.stringify(networks));
-    } catch (error) {
-      console.warn('Storage quota exceeded. Unable to save all networks. Try deleting old networks to free up space.', error);
-    }
+    localStorage.setItem('neural_networks', JSON.stringify(networks));
   }, [networks]);
 
   const [selectedNetworkId, setSelectedNetworkId] = useState<string | null>(null);
