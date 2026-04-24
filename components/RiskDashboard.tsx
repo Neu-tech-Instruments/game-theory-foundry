@@ -119,11 +119,25 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
 
     const handleNativeWheel = (e: WheelEvent) => {
         e.preventDefault();
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
         const zoomSpeed = e.ctrlKey ? 0.01 : 0.0015;
         const delta = -e.deltaY;
+
         setViewState(prev => {
-            const newZoom = Math.min(Math.max(prev.zoom + delta * zoomSpeed, 0.3), 4);
-            return { ...prev, zoom: newZoom };
+            const newZoom = Math.min(Math.max(prev.zoom + delta * zoomSpeed, 0.1), 4); // lowered min zoom slightly
+
+            // Compute world coordinates of the mouse
+            const worldX = mouseX / prev.zoom - prev.panX;
+            const worldY = mouseY / prev.zoom - prev.panY;
+
+            // Compute new pan values so that the world coordinates stay under the mouse
+            const newPanX = mouseX / newZoom - worldX;
+            const newPanY = mouseY / newZoom - worldY;
+
+            return { panX: newPanX, panY: newPanY, zoom: newZoom };
         });
     };
     
@@ -279,27 +293,32 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
         position: { x: number; y: number };
     }
 
-    const layerCounts: Record<number, number> = {};
     const layerIndices: Record<number, number> = {};
+    const LAYER_SPACING = 800;
+    const Y_SPACING = 120;
 
-    // Pass 1: Global count per layer
-    const countLayers = (nodes: any[], layer: number) => {
-        layerCounts[layer] = (layerCounts[layer] || 0) + nodes.length;
-        nodes.forEach(n => {
-            if (n.children && n.children.length > 0) {
-                countLayers(n.children, layer + 1);
-            }
-        });
-    };
-    countLayers(selectedNetwork.genealogy, 0);
-
-    // Pass 2: Position and Transform
-    const transform = (nodes: any[], layer: number): PositionedNode[] => {
-        return nodes.map((n) => {
+    // Pass: Position and Transform — children always placed relative to their parent.
+    // This guarantees horizontal right-expansion regardless of global layer counts.
+    const transform = (nodes: any[], layer: number, parentPos?: { x: number; y: number }): PositionedNode[] => {
+        const siblings = nodes.length;
+        return nodes.map((n, localIdx) => {
             const globalIdx = layerIndices[layer] || 0;
             layerIndices[layer] = globalIdx + 1;
 
-            const position = n.position || getInitialPosition(n.id, globalIdx, layerCounts[layer], layer);
+            let position: { x: number; y: number };
+            if (n.position) {
+                // Already pinned by user drag — keep it
+                position = n.position;
+            } else if (parentPos) {
+                // Fan children out to the RIGHT of parent, centred on parent's Y
+                const yOffset = (localIdx - (siblings - 1) / 2) * Y_SPACING;
+                position = { x: parentPos.x + LAYER_SPACING, y: parentPos.y + yOffset };
+            } else {
+                // Root-level fallback: stack vertically at x=400
+                const yOffset = (localIdx - (siblings - 1) / 2) * Y_SPACING;
+                position = { x: 400, y: 300 + yOffset };
+            }
+
             const isCollapsed = collapsedNodeIds.has(n.id);
 
             const countNested = (node: any): number => {
@@ -312,14 +331,14 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
                 position,
                 isCollapsed,
                 hiddenChildCount: isCollapsed ? countNested(n) : 0,
-                children: (n.children && !isCollapsed) ? transform(n.children, layer + 1) : undefined
+                children: (n.children && !isCollapsed) ? transform(n.children, layer + 1, position) : undefined
             };
         });
     };
 
     const positionedGenealogy = transform(selectedNetwork.genealogy, 0);
 
-    // Pass 3: Flatten — NO LOD filter here
+    // Pass 2: Flatten — NO LOD filter here
     const flat: any[] = [];
     const walk = (nodes: any[]) => {
         nodes.forEach(n => {
@@ -328,7 +347,6 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
         });
     };
         walk(positionedGenealogy);
-        // No hard cap needed — auto-collapse keeps the visible set small
         return flat;
     }, [selectedNetwork, collapsedNodeIds]);
 
