@@ -6,7 +6,7 @@
 export interface MaterialNode {
   id: string;
   name: string;
-  category: 'ASSEMBLY' | 'SUB_SYSTEM' | 'COMPONENT' | 'PART' | 'ELEMENT';
+  category: 'GENESIS' | 'ASSEMBLY' | 'SUB_SYSTEM' | 'MODULE' | 'COMPONENT' | 'PART' | 'ELEMENT' | 'RAW_MATERIAL';
   riskScore: number;
   basePrice?: number;
   unit?: string;
