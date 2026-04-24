@@ -1,9 +1,6 @@
-
 import React, { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Payoff } from '../types';
-
-export type MetricType = 'pts_us' | 'pts_china' | 'inflation_index';
+import { Payoff, MetricType } from '../types';
 
 interface Props {
   payoff: Payoff;
@@ -13,35 +10,50 @@ interface Props {
 export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
   const config = useMemo(() => {
     switch (metric) {
-      case 'pts_us':
+      case 'pts_tech':
         return {
           baseColor: '#1971c2',
           forecastColor: '#74c0fc',
-          baseline: 8,
+          baseline: payoff.sectors.TECH.points,
           volatility: 1,
-          label: 'United States Points'
+          label: 'Technology & AI'
         };
-      case 'pts_china':
+      case 'pts_manufacturing':
         return {
           baseColor: '#e03131',
           forecastColor: '#ff8787',
-          baseline: 7,
+          baseline: payoff.sectors.MANUFACTURING.points,
           volatility: 1.5,
-          label: 'China Points'
+          label: 'Global Manufacturing'
+        };
+      case 'pts_energy':
+        return {
+          baseColor: '#e8590c',
+          forecastColor: '#ffa94d',
+          baseline: payoff.sectors.ENERGY.points,
+          volatility: 2,
+          label: 'Energy & Resources'
+        };
+      case 'pts_finance':
+        return {
+          baseColor: '#2b8a3e',
+          forecastColor: '#69db7c',
+          baseline: payoff.sectors.FINANCE.points,
+          volatility: 1.2,
+          label: 'Financial Markets'
         };
       case 'inflation_index':
         return {
           baseColor: '#495057',
           forecastColor: '#adb5bd',
-          baseline: 50,
+          baseline: (payoff.sectors.TECH.inflation + payoff.sectors.MANUFACTURING.inflation + payoff.sectors.ENERGY.inflation + payoff.sectors.FINANCE.inflation) / 4,
           volatility: 5,
-          label: 'Inflation Rate'
+          label: 'Global Average Inflation'
         };
     }
-  }, [metric]);
+  }, [metric, payoff]);
 
   const data = useMemo(() => {
-    // Generate data based on metric config
     const pointsData = [];
     const currentYear = new Date().getFullYear();
     const months = [`${currentYear}`, 'Q2', 'Q3', 'Q4'];
@@ -51,22 +63,15 @@ export const TrendChart: React.FC<Props> = ({ payoff, metric }) => {
     let timeIndex = 0;
     for (let c = 0; c < cycles; c++) {
       for (let s = 0; s < stepsPerCycle; s++) {
-        const base = config.baseline + (Math.random() * 2);
-        // Vary shape based on metric
+        const base = config.baseline + (Math.random() * 1.5);
         let demand, forecast;
 
-        if (metric === 'pts_us') {
-          // Stable high points
-          demand = base + Math.sin(timeIndex * 0.1) * 0.5 + (s * 0.05);
-          forecast = demand + 0.5;
-        } else if (metric === 'pts_china') {
-          // Scaled points
-          demand = base + Math.sin(timeIndex * 0.15) * 0.8 + (s * 0.08);
-          forecast = demand + 0.6;
+        if (metric === 'inflation_index') {
+          demand = base + (Math.random() * config.volatility * 2);
+          forecast = demand + (Math.random() * 4);
         } else {
-          // Volatile spike for inflation
-          demand = base + (Math.random() * config.volatility * 5);
-          forecast = demand + (Math.random() * 10);
+          demand = Math.max(0, base + Math.sin(timeIndex * (config.volatility * 0.1)) * (config.volatility * 0.5) + (s * 0.05));
+          forecast = demand + (Math.random() * 0.5);
         }
 
         pointsData.push({

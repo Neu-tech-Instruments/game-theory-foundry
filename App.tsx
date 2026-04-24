@@ -1,38 +1,38 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   GameState,
-  Strategy,
   ScenarioID,
-  US_BanItem,
-  CHINA_BanItem,
   AIStrategyType,
   HistoryEntry,
-  EconomyState,
-  Payoff
+  MetricType,
+  SectorState,
+  Payoff,
+  PolicyStrategy,
+  IndustryStrategy,
+  BannedAsset
 } from './types';
 import { SCENARIOS } from './constants';
-import { ScenarioSelector } from './components/ScenarioSelector';
 import { StrategyToggle } from './components/StrategyToggle';
 import { EconomyHUD } from './components/EconomyHUD';
 import { AIAdvisor } from './components/AIAdvisor';
 import { SupplyChainGraph } from './components/SupplyChainGraph';
-import { TrendChart, MetricType } from './components/TrendChart';
+import { TrendChart } from './components/TrendChart';
 import { GameMatrix } from './components/GameMatrix';
 import { useTradeEngine } from './hooks/useTradeEngine';
 import { TradeRoutes } from './components/TradeRoutes';
+import { RiskDashboard, NeuralDrillCard, NeuralSynapses, MaterialTrendChart, SupplyChainLegend, NeuralMiniMap } from './components/RiskDashboard';
+import { AppSettings } from './components/AppSettings';
+import { AdminOptimizerPanel } from './components/AdminOptimizerPanel';
+import { LoginScreen } from './components/LoginScreen';
+import { MATERIAL_GENEALOGY, MaterialNode } from './constants/material_genealogy';
 import {
   Settings2,
   Layers,
-  Search,
   Info,
   History,
   Play,
   RotateCcw,
   Maximize2,
-  RectangleHorizontal,
-  ChevronDown,
-  ChevronRight,
   Database,
   Menu,
   X,
@@ -40,55 +40,171 @@ import {
   Terminal,
   Brain,
   Zap,
-  ShieldAlert,
+  FlaskConical,
   Target,
-  Video
+  ChevronRight,
+  Calendar,
+  Search,
+  MapPin,
+  Clock,
+  Globe,
+  List
 } from 'lucide-react';
+import { EventIntelCard } from './components/EventIntelCard';
+import { usePolymarket } from './hooks/usePolymarket';
+import { SavingsDashboard } from './components/SavingsDashboard';
+import { GlobalInventory } from './components/GlobalInventory';
 
 const App: React.FC = () => {
-  const [state, setState] = useState<GameState>({
-    scenario: 'NEUTRAL',
-    usStrategy: 'FREE_TRADE',
-    chinaStrategy: 'FREE_TRADE',
-    usBanFocus: 'AI_CHIPS',
-    chinaBanFocus: 'RARE_EARTHS',
-    chinaStrategyMode: 'MANUAL',
-    currentRound: 1,
-    history: []
+  const [state, setState] = useState<GameState>(() => {
+    const saved = localStorage.getItem('simulation_state');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error("Sim State Load Error", e); }
+    }
+    return {
+      scenario: 'BULL_MARKET',
+      policyStrategy: 'FREE_TRADE',
+      industryStrategy: 'EXPANSION',
+      bannedAsset: 'SEMICONDUCTORS',
+      industryMode: 'MANUAL',
+      currentRound: 1,
+      history: [],
+      predictionLog: []
+    };
   });
 
-  const [currentView, setCurrentView] = useState<'simulation' | 'trade_routes'>('simulation');
+  useEffect(() => {
+    localStorage.setItem('simulation_state', JSON.stringify(state));
+  }, [state]);
+
+  const [currentView, setCurrentView] = useState<'simulation' | 'trade_routes' | 'risk_dashboard' | 'inventory' | 'settings' | 'admin'>('simulation');
   const [activeTab, setActiveTab] = useState<'config' | 'intel'>('config');
   const [bottomTab, setBottomTab] = useState<'trends' | 'matrix' | 'log'>('trends');
-  const [activeMetric, setActiveMetric] = useState<MetricType>('pts_us');
+  const [activeMetric, setActiveMetric] = useState<MetricType>('pts_tech');
+  const [simulationDate, setSimulationDate] = useState('2026-04-16');
+  const [liveJitter, setLiveJitter] = useState({ tech: 0, finance: 0, mfg: 0, energy: 0 });
+
+  // Simulate Live Market Data Feed
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveJitter({
+        tech: (Math.random() - 0.5) * 0.15,
+        finance: (Math.random() - 0.5) * 0.1,
+        mfg: (Math.random() - 0.5) * 0.08,
+        energy: (Math.random() - 0.5) * 0.25,
+      });
+    }, 2500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getLiveSector = (sector: SectorState, jitter: number): SectorState => ({
+    ...sector,
+    points: Math.max(0, Math.min(10, Number((sector.points + jitter).toFixed(1)))),
+    inflation: Math.max(0, Number((sector.inflation + jitter * 1.5).toFixed(1))),
+    growth: Number((sector.growth + jitter * 4).toFixed(1)),
+    stability: Math.max(0, Math.min(100, Math.round(sector.stability + jitter * 2)))
+  });
+  const [targetDate, setTargetDate] = useState('2028-06-01');
+  const [activeEvents, setActiveEvents] = useState<any[]>([
+    { id: '1', title: 'Suez Canal Expansion Complete', severity: 'MID', impact: 'Positive - Trade Flow', timestamp: '2026-03-20', type: 'GEOPOLITICAL' },
+    { id: '2', title: 'Rare Earth Mineral Sanctions', severity: 'HIGH', impact: 'Negative - Manufacturing', timestamp: '2026-04-12', type: 'TRADE' }
+  ]);
+  const { markets: marketData, loading: marketsLoading } = usePolymarket();
   const currentPayoff = useTradeEngine(state);
 
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [isPanelMaximized, setIsPanelMaximized] = useState(false);
-  const [panelHeight, setPanelHeight] = useState(300); // Default medium height for better visibility
+  const [panelHeight, setPanelHeight] = useState(300);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
   const [dragStartHeight, setDragStartHeight] = useState(0);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [recalcTrigger, setRecalcTrigger] = useState(0);
 
-  // Responsive state
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [flowType, setFlowType] = useState<'US' | 'CHINA'>('US');
 
-  // Breakpoint detection
+  // --- Architect State (Lifted from RiskDashboard) ---
+  const [networks, setNetworks] = useState<any[]>(() => {
+    const saved = localStorage.getItem('neural_networks');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error("Persistence Load Error", e); }
+    }
+    return [
+      {
+        id: '1',
+        name: 'Veranda Alpha-1',
+        sector: 'HEAVY_INDUSTRY',
+        createdAt: '2026-03-20',
+        riskScore: 82.5,
+        genealogy: JSON.parse(JSON.stringify(MATERIAL_GENEALOGY['CHAIR'].genealogy))
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('neural_networks', JSON.stringify(networks));
+  }, [networks]);
+
+  const [selectedNetworkId, setSelectedNetworkId] = useState<string | null>(null);
+  const [wizardStep, setWizardStep] = useState<string | null>(null);
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [graphState, setGraphState] = useState<{ allNodes: any[], viewState: any, setViewState: any } | null>(null);
+  const [activeBottomTab, setActiveBottomTab] = useState<string>('SECTOR_TRENDS');
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (category: string) => {
+    setHiddenCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  };
+
+  const selectedNetwork = useMemo(() => networks.find(n => n.id === (selectedNetworkId || '1')), [networks, selectedNetworkId]);
+  const selectedNode = useMemo(() => {
+    if (!selectedNetwork || !selectedNodeId) return null;
+    const allNodes: any[] = [];
+    const walk = (nodes: any[]) => {
+      nodes.forEach(n => {
+        allNodes.push(n);
+        if (n.children) walk(n.children);
+      });
+    };
+    walk(selectedNetwork.genealogy);
+    return allNodes.find((n: any) => n.id === selectedNodeId) || null;
+  }, [selectedNetwork, selectedNodeId]);
+
+  const availableCategories = useMemo(() => {
+    if (!selectedNetwork) return null;
+    const categories = new Set<string>();
+    const walk = (nodes: any[]) => {
+      nodes.forEach(n => {
+        if (n.category) categories.add(n.category);
+        else categories.add('COMPONENT'); // Default fallback
+        if (n.children) walk(n.children);
+      });
+    };
+    walk(selectedNetwork.genealogy);
+    return categories;
+  }, [selectedNetwork]);
+
+  useEffect(() => {
+    if (selectedNetwork && !selectedComponentId) {
+      setSelectedComponentId(selectedNetwork.genealogy[0]?.id);
+    }
+  }, [selectedNetwork, selectedComponentId]);
+
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
       setIsMobile(width < 768);
       setIsTablet(width >= 768 && width < 1024);
-
-      // Auto-close sidebar on desktop
-      if (width >= 1024) {
-        setIsSidebarOpen(false);
-      }
+      if (width >= 1024) setIsSidebarOpen(false);
     };
 
     handleResize();
@@ -96,25 +212,14 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Drag to resize panel
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-
       const windowHeight = window.innerHeight;
-      const newHeight = windowHeight - e.clientY - 16; // 16px for bottom margin
-
-      // Clamp between 40px (collapsed) and full screen minus top margin
+      const newHeight = windowHeight - e.clientY - 16;
       let clampedHeight = Math.max(40, Math.min(newHeight, windowHeight - 90));
-
-      // Snap to medium size (300px) when within 30px range
-      if (Math.abs(clampedHeight - 300) < 30) {
-        clampedHeight = 300;
-      }
-
+      if (Math.abs(clampedHeight - 300) < 30) clampedHeight = 300;
       setPanelHeight(clampedHeight);
-
-      // Update states based on height
       if (clampedHeight <= 50) {
         setIsPanelCollapsed(true);
         setIsPanelMaximized(false);
@@ -129,7 +234,6 @@ const App: React.FC = () => {
 
     const handleMouseUp = () => {
       setIsDragging(false);
-
       const windowHeight = window.innerHeight;
       const MAX_HEIGHT = windowHeight - 90;
       const MID_HEIGHT = 300;
@@ -139,35 +243,17 @@ const App: React.FC = () => {
       const dragDistance = panelHeight - dragStartHeight;
       const isDraggingUp = dragDistance > 0;
 
-      // SENIOR DEV INTERACTION PATTERN: Directional Hysteresis
-      // The threshold to "leave" a state depends on direction.
-      // It should be EASY to leave (low threshold) and Sticky to arrive.
-
       if (isDraggingUp) {
-        // DRAGGING UP (Expanding)
-        if (panelHeight > MAX_HEIGHT - 200) {
-          finalHeight = MAX_HEIGHT; // Easy to hit Max
-        } else if (panelHeight > 70) {
-          // SUPER EAGER: unique "flick" feel. 
-          // Collapsed is 40px. If you drag up just 30px (to 70px), it snaps to Medium (300px).
-          finalHeight = MID_HEIGHT;
-        } else {
-          finalHeight = MIN_HEIGHT; // Stay collapsed if barely matched
-        }
+        if (panelHeight > MAX_HEIGHT - 200) finalHeight = MAX_HEIGHT;
+        else if (panelHeight > 70) finalHeight = MID_HEIGHT;
+        else finalHeight = MIN_HEIGHT;
       } else {
-        // DRAGGING DOWN (Collapsing)
-        if (panelHeight > MAX_HEIGHT - 100) {
-          finalHeight = MAX_HEIGHT; // Sticky Max
-        } else if (panelHeight > 240) {
-          finalHeight = MID_HEIGHT; // Sticky Mid
-        } else {
-          finalHeight = MIN_HEIGHT; // Very easy to collapse
-        }
+        if (panelHeight > MAX_HEIGHT - 100) finalHeight = MAX_HEIGHT;
+        else if (panelHeight > 240) finalHeight = MID_HEIGHT;
+        else finalHeight = MIN_HEIGHT;
       }
 
       setPanelHeight(finalHeight);
-
-      // Update states based on final height
       if (finalHeight <= 50) {
         setIsPanelCollapsed(true);
         setIsPanelMaximized(false);
@@ -193,122 +279,262 @@ const App: React.FC = () => {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isDragging]);
+  }, [isDragging, panelHeight, dragStartHeight]);
 
-  const advanceRound = () => {
+  const calculateFutureProjection = () => {
     setIsRecalculating(true);
     setRecalcTrigger(p => p + 1);
 
+    // Integrate Engine Room Weights with Timeline Projector
     setTimeout(() => {
-      setState(prev => {
-        // 1. Commit current state to history
-        const newEntry: HistoryEntry = {
-          round: prev.currentRound,
-          usStrategy: prev.usStrategy,
-          chinaStrategy: prev.chinaStrategy,
-          payoff: currentPayoff
-        };
+      const yearDiff = Math.max(0.1, (new Date(targetDate).getTime() - new Date(simulationDate).getTime()) / (1000 * 60 * 60 * 24 * 365));
 
-        const newHistory = [...prev.history, newEntry];
-        let nextChinaStrategy = prev.chinaStrategy;
-
-        // 2. Determine China's NEXT strategy based on mode
-        if (prev.chinaStrategyMode === 'TIT_FOR_TAT') {
-          // Copy US strategy from this round for the next
-          nextChinaStrategy = prev.usStrategy;
-        } else if (prev.chinaStrategyMode === 'GRIM_TRIGGER') {
-          // If US EVER escalated to Export Bans (in this round or previous), stay in Export Bans
-          const hasEscalated = newHistory.some(h => h.usStrategy === 'EXPORT_BANS');
-          if (hasEscalated) {
-            nextChinaStrategy = 'EXPORT_BANS';
-          }
-        } else if (prev.chinaStrategyMode === 'RANDOM') {
-          const strategies: Strategy[] = ['FREE_TRADE', 'TARIFFS', 'EXPORT_BANS'];
-          nextChinaStrategy = strategies[Math.floor(Math.random() * strategies.length)];
+      // 1. Load optimized weights from the Admin Optimizer
+      const rawWeights = localStorage.getItem('engine_weights');
+      let engineWeights: any[] = [];
+      if (rawWeights) {
+        try {
+          engineWeights = JSON.parse(rawWeights);
+        } catch (e) {
+          console.error("Failed to parse engine weights");
         }
+      }
+
+      // 2. Deterministic Volatility Engine
+      let eventDrift = 0;
+      if (engineWeights.length > 0) {
+        activeEvents.forEach(evt => {
+           // Determine direction (Negative impact = higher risk/drift)
+           const isNegative = evt.impact.toLowerCase().includes('negative');
+           const dir = isNegative ? 1 : -1;
+           
+           // Base multiplier on severity
+           const sevMultiplier = evt.severity === 'HIGH' ? 2 : evt.severity === 'MID' ? 1 : 0.5;
+           const conf = evt.confidence ? (evt.confidence / 100) : 0.8;
+           
+           // Map event to an engine weight category
+           let targetCategory = 'shipping'; // Default fallback
+           if (evt.impact.toLowerCase().includes('manufacturing')) targetCategory = 'electronics';
+           if (evt.impact.toLowerCase().includes('trade')) targetCategory = 'shipping';
+           
+           const weightObj = engineWeights.find(w => w.category === targetCategory) || engineWeights[0];
+           const weightVal = weightObj ? weightObj.weight : 0.5;
+           const lagVal = weightObj ? weightObj.lag : 30;
+           
+           // Mathematical principle: Short lag = acute short-term impact. Long lag = smoothed out.
+           const lagImpact = Math.max(0.1, 1 - (lagVal / 365)); 
+           
+           // Calculate the precise event-driven drift
+           eventDrift += dir * sevMultiplier * weightVal * conf * lagImpact * 20;
+        });
+      }
+
+      // 3. Apply Certainty Decay Model
+      // Confidence drops as we look further out: C = 1 / sqrt(1 + years)
+      const confidenceFactor = 1 / Math.sqrt(1 + yearDiff);
+      const volatilityBase = 15;
+      
+      // Calculate final deterministic neural drift using engine's mapped output
+      // Preserve the sign so negative events increase risk, positive events decrease risk
+      const neuralDriftPower = (eventDrift) * (1 - Math.min(0.9, confidenceFactor) + 0.1) * yearDiff;
+
+      const scenarios: ScenarioID[] = ['BULL_MARKET', 'BEAR_MARKET', 'RECESSION', 'SUPPLY_SHOCK'];
+      const nextScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+
+      // Realize Pending Predictions
+      setState(prev => {
+        const updatedLog = prev.predictionLog.map(entry => {
+          if (entry.status === 'PENDING' && new Date(entry.targetDate) <= new Date(targetDate)) {
+            // Find current node in networks to get realized price
+            const node = networks[0].genealogy.find((n: any) => n.id === entry.materialId) ||
+              networks[0].genealogy.flatMap((n: any) => n.children || []).find((c: any) => c.id === entry.materialId);
+
+            if (node) {
+              const sectorPanic = currentPayoff.sectors[networks[0].sector as MapMode]?.panicIndex || 0;
+              const hoardingMultiplier = 1 + (sectorPanic / 100) * 0.5; // Simulate up to 1.5x hoarding spike on realization
+
+              const realizedPrice = (node.basePrice || 100) * (1 + (node.riskScore / 100)) * hoardingMultiplier;
+              const savings = Math.max(0, (realizedPrice - entry.predictedPrice) * entry.quantity);
+              return { ...entry, status: 'REALIZED', realizedPrice, savings };
+            }
+          }
+          return entry;
+        });
 
         return {
           ...prev,
-          history: newHistory,
-          currentRound: prev.currentRound + 1,
-          chinaStrategy: nextChinaStrategy
+          scenario: nextScenario,
+          currentRound: prev.currentRound + Math.ceil(yearDiff),
+          history: [
+            ...prev.history,
+            { round: prev.currentRound, policyStrategy: prev.policyStrategy, industryStrategy: prev.industryStrategy, payoff: currentPayoff }
+          ],
+          predictionLog: updatedLog
         };
       });
+
+      setSimulationDate(targetDate);
+
+      // Deep Neural Drift - Scale randomness by certainty decay
+      setNetworks(prevNets => prevNets.map(net => {
+        const sectorPanic = currentPayoff.sectors[net.sector as MapMode]?.panicIndex || 0;
+        const panicDrift = 1 + (sectorPanic / 100) * 2; // Up to 3x drift speed during panic
+
+        const newGenealogy = net.genealogy.map((comp: any) => ({
+          ...comp,
+          // Deterministic update using the calculated drift power
+          riskScore: Math.max(5, Math.min(98, comp.riskScore + neuralDriftPower * panicDrift)),
+          children: comp.children?.map((m: any) => ({
+            ...m,
+            // Children nodes are 1.5x more volatile to macro shifts
+            riskScore: Math.max(5, Math.min(98, m.riskScore + (neuralDriftPower * 1.5) * panicDrift))
+          }))
+        }));
+
+        // Generate NEW Predictions based on high risk scores after drift
+        const newPredictions: any[] = [];
+        newGenealogy.forEach((comp: any) => {
+          if (comp.riskScore > 70) {
+            newPredictions.push({
+              id: Math.random().toString(36).substr(2, 9),
+              materialId: comp.id,
+              materialName: comp.name,
+              predictionDate: targetDate, // The new "current" date
+              targetDate: new Date(new Date(targetDate).setFullYear(new Date(targetDate).getFullYear() + 1)).toISOString().split('T')[0],
+              predictedPrice: (comp.basePrice || 100) * (1 + (comp.riskScore / 100)),
+              quantity: 100, // Assumed small business quantity
+              status: 'PENDING'
+            });
+          }
+          comp.children?.forEach((child: any) => {
+            if (child.riskScore > 70) {
+              newPredictions.push({
+                id: Math.random().toString(36).substr(2, 9),
+                materialId: child.id,
+                materialName: child.name,
+                predictionDate: targetDate,
+                targetDate: new Date(new Date(targetDate).setFullYear(new Date(targetDate).getFullYear() + 1)).toISOString().split('T')[0],
+                predictedPrice: (child.basePrice || 100) * (1 + (child.riskScore / 100)),
+                quantity: 100,
+                status: 'PENDING'
+              });
+            }
+          });
+        });
+
+        setState(prev => ({
+          ...prev,
+          predictionLog: [...prev.predictionLog, ...newPredictions]
+        }));
+
+        return { ...net, genealogy: newGenealogy };
+      }));
+
+      // Inject Market Data into Events
+      const marketEvents = marketData.slice(0, 3).map(m => ({
+        id: m.id,
+        title: m.title,
+        severity: m.probability > 50 ? 'HIGH' : 'MID',
+        impact: `${m.probability}% Market Probability`,
+        timestamp: targetDate,
+        type: m.category as any,
+        marketProb: m.probability,
+        confidence: Math.round(confidenceFactor * 100)
+      }));
+
+      setActiveEvents(prev => [...marketEvents, ...prev.slice(0, 2)]);
       setIsRecalculating(false);
-    }, 600);
+    }, 1800);
   };
 
   const resetSimulation = () => {
     setState({
-      scenario: 'NEUTRAL',
-      usStrategy: 'FREE_TRADE',
-      chinaStrategy: 'FREE_TRADE',
-      usBanFocus: 'AI_CHIPS',
-      chinaBanFocus: 'RARE_EARTHS',
-      chinaStrategyMode: 'MANUAL',
+      scenario: 'BULL_MARKET',
+      policyStrategy: 'FREE_TRADE',
+      industryStrategy: 'EXPANSION',
+      bannedAsset: 'SEMICONDUCTORS',
+      industryMode: 'MANUAL',
       currentRound: 1,
       history: []
     });
     setRecalcTrigger(p => p + 1);
+
+    // Reset all node positions to force the layout engine to re-seed default values
+    setNetworks(prevNets => prevNets.map(net => {
+      const clearPositions = (nodes: any[]): any[] => {
+        return nodes.map(n => {
+          const { position, ...rest } = n;
+          return {
+            ...rest,
+            ...(n.children ? { children: clearPositions(n.children) } : {})
+          };
+        });
+      };
+      return { ...net, genealogy: clearPositions(net.genealogy) };
+    }));
   };
-
-
 
   return (
     <div className="h-screen bg-[#f1f3f5] text-[#1c1e21] flex flex-col font-sans overflow-hidden select-none">
-      {/* Top Breadcrumb Header */}
-      <header className="h-10 shrink-0 border-b border-[#dfe3e6] bg-white flex items-center px-4 gap-2 text-[12px] font-medium text-[#4a5056]">
-        {/* Mobile/Tablet Menu Button */}
+      <header className="h-10 shrink-0 border-b border-[#dfe3e6] bg-white flex items-center pl-4 gap-2 text-[12px] font-medium text-[#4a5056]">
         {(isMobile || isTablet) && (
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="mr-2 p-1 hover:bg-[#f8f9fa] rounded"
-          >
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mr-2 p-1 hover:bg-[#f8f9fa] rounded">
             {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         )}
-
-        <span className={`text-[#868e96] ${isMobile ? 'hidden' : ''}`}>Geopolitical Engine</span>
+        <button
+          onClick={() => { setCurrentView('simulation'); setSelectedNetworkId(null); }}
+          className={`hover:text-[#228be6] transition-colors ${currentView !== 'simulation' ? 'text-[#868e96] cursor-pointer' : 'text-[#868e96] cursor-default'} ${isMobile ? 'hidden' : ''}`}
+        >
+          Geopolitical Engine
+        </button>
         <ChevronRight className={`w-3 h-3 text-[#adb5bd] ${isMobile ? 'hidden' : ''}`} />
-        <span className="text-[#1c1e21] font-semibold">Strategic Flow Analysis</span>
+        <button
+          onClick={() => { if (currentView === 'risk_dashboard') setSelectedNetworkId(null); }}
+          className={`font-semibold hover:text-[#228be6] transition-colors ${currentView === 'risk_dashboard' && selectedNetworkId ? 'text-[#495057] cursor-pointer' : 'text-[#1c1e21] cursor-default'}`}
+        >
+          {currentView === 'risk_dashboard'
+            ? (wizardStep ? 'Neural Architect' : 'Neural Material Architecture')
+            : currentView === 'trade_routes' ? 'Global Trade Radar' : currentView === 'inventory' ? 'Global Inventory' : currentView === 'settings' ? 'System Configuration' : 'Macroeconomic Industry Simulator'}
+        </button>
+        {currentView === 'risk_dashboard' && selectedNetworkId && (
+          <>
+            <ChevronRight className={`w-3 h-3 text-[#adb5bd] ${isMobile ? 'hidden' : ''}`} />
+            <span className="text-[#1c1e21] font-semibold">{networks.find(n => n.id === selectedNetworkId)?.name || 'Network Detail'}</span>
+          </>
+        )}
         <span className={`ml-2 text-[#adb5bd] ${isMobile ? 'hidden' : ''}`}>...</span>
 
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-[#f8f9fa] border border-[#dee2e6] rounded px-3 py-1">
-            <History className="w-3 h-3 text-[#228be6]" />
-            <span className="text-[11px] font-black text-[#495057]">ROUND {state.currentRound}</span>
-          </div>
+        <div className="ml-auto flex items-center h-full w-[340px] border-l border-[#dfe3e6] px-4 gap-3 bg-white">
+          {/* Reset Action */}
           <button
             onClick={resetSimulation}
-            className="p-1 px-2 border border-[#dee2e6] rounded bg-white text-[#fa5252] hover:bg-[#fff5f5] text-[10px] font-bold transition-all flex items-center gap-1"
+            className="h-7 px-3 border border-slate-200 rounded bg-white text-red-500 hover:bg-red-50 hover:border-red-200 text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm active:translate-y-px"
           >
             <Trash2 className="w-3 h-3" /> Reset
           </button>
 
+          {/* Fullscreen Toggle */}
           <button
-            onClick={() => {
-              if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-              } else {
-                document.exitFullscreen();
-              }
-            }}
-            className="p-1.5 border border-[#dee2e6] rounded bg-white text-[#495057] hover:bg-[#f8f9fa] transition-all"
+            onClick={() => { if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); } else { document.exitFullscreen(); } }}
+            className="h-7 w-7 border border-slate-200 rounded bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center shadow-sm active:translate-y-px"
             title="Toggle Fullscreen"
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
 
-          <div className={`w-2 h-2 rounded-full mx-1 transition-colors ${isRecalculating ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-          <span className={`text-[11px] font-bold text-[#495057] ${isMobile ? 'hidden sm:inline' : ''}`}>{isRecalculating ? 'Processing...' : 'Simulation Active'}</span>
+          {/* Simulation Status */}
+          <div className="flex-1 flex items-center justify-end gap-2">
+            <div className={`w-2 h-2 rounded-full transition-colors ${isRecalculating ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+            <span className={`text-[10px] font-black text-slate-600 uppercase tracking-widest truncate ${isMobile ? 'hidden sm:inline' : ''}`}>
+              {isRecalculating ? 'Processing' : 'Active'}
+            </span>
+          </div>
         </div>
       </header>
 
-      {/* Main Workspace */}
       <div className="flex-1 flex min-h-0 relative">
-
-        {/* Left Toolbar (Vertical) - Desktop Only */}
-        {!isMobile && !isTablet && (
+        {!isMobile && (
           <aside className="w-10 border-r border-[#dfe3e6] bg-white flex flex-col items-center py-4 gap-6 shrink-0">
             <button onClick={() => setCurrentView('simulation')}>
               <Info className={`w-5 h-5 cursor-pointer transition-colors ${currentView === 'simulation' ? 'text-[#228be6]' : 'text-[#868e96] hover:text-[#228be6]'}`} />
@@ -316,88 +542,60 @@ const App: React.FC = () => {
             <button onClick={() => setCurrentView('trade_routes')}>
               <Layers className={`w-5 h-5 cursor-pointer transition-colors ${currentView === 'trade_routes' ? 'text-[#228be6]' : 'text-[#868e96] hover:text-[#228be6]'}`} />
             </button>
-            <Video className="w-5 h-5 text-[#868e96] hover:text-[#228be6] cursor-pointer" />
-            <Search className="w-5 h-5 text-[#868e96] hover:text-[#228be6] cursor-pointer" />
+            <button onClick={() => setCurrentView('risk_dashboard')}>
+              <Database className={`w-5 h-5 cursor-pointer transition-colors ${currentView === 'risk_dashboard' ? 'text-[#228be6]' : 'text-[#868e96] hover:text-[#228be6]'}`} />
+            </button>
+            <button onClick={() => setCurrentView('inventory')}>
+              <List className={`w-5 h-5 cursor-pointer transition-colors ${currentView === 'inventory' ? 'text-[#228be6]' : 'text-[#868e96] hover:text-[#228be6]'}`} />
+            </button>
             <div className="mt-auto mb-2 flex flex-col items-center gap-4">
-              <Settings2 className="w-5 h-5 text-[#868e96] hover:text-[#228be6] cursor-pointer" />
+              <button onClick={() => setCurrentView('settings')}>
+                <Settings2 className={`w-5 h-5 cursor-pointer transition-colors ${currentView === 'settings' ? 'text-[#228be6]' : 'text-[#868e96] hover:text-[#228be6]'}`} />
+              </button>
+              <button onClick={() => setCurrentView('admin')} title="Admin Optimizer">
+                <FlaskConical className={`w-5 h-5 cursor-pointer transition-colors ${currentView === 'admin' ? 'text-blue-500' : 'text-[#868e96] hover:text-blue-400'}`} />
+              </button>
             </div>
           </aside>
         )}
 
-        {/* Center Canvas */}
         <main className="flex-1 flex flex-col min-h-0 bg-[#f8f9fa] relative overflow-hidden">
-
-          {currentView === 'simulation' ? (
+          {currentView === 'admin' ? (
+            <AdminOptimizerPanel />
+          ) : currentView === 'inventory' ? (
+            <GlobalInventory
+              networks={networks}
+              predictionLog={state.predictionLog}
+              onSelectNode={(netId, nodeId) => {
+                setSelectedNetworkId(netId);
+                setSelectedNodeId(nodeId);
+                setCurrentView('risk_dashboard');
+                setActiveBottomTab('PROTECTION_ROI');
+                setIsPanelCollapsed(false);
+              }}
+            />
+          ) : currentView === 'simulation' ? (
             <>
-              {/* Canvas Toolbar */}
               <div className="h-12 border-b border-[#dee2e6] bg-white flex items-center px-4 gap-3 z-10 shrink-0 relative justify-between">
-                <button
-                  onClick={advanceRound}
-                  disabled={isRecalculating}
-                  className={`flex items-center gap-2 px-4 py-1.5 rounded text-[13px] font-black shadow-md transition-all h-8
-                    ${isRecalculating
-                      ? 'bg-blue-400 text-white/80 cursor-not-allowed'
-                      : 'bg-[#228be6] text-white hover:bg-[#1c7ed6] hover:-translate-y-0.5 active:translate-y-0'
-                    }`}
-                >
-                  <Play className={`w-3.5 h-3.5 fill-white ${isRecalculating ? 'hidden' : ''}`} />
-                  {isRecalculating && <RotateCcw className="w-3.5 h-3.5 animate-spin" />}
-                  {isRecalculating ? 'Committing...' : 'NEXT ROUND'}
-                </button>
-
-                {/* Flow Switcher - Breadcrumb Style */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3">
-                  <button
-                    onClick={() => setFlowType('US')}
-                    className={`text-[13px] transition-all ${flowType === 'US'
-                      ? 'text-slate-900 font-bold'
-                      : 'text-slate-400 font-medium hover:text-slate-600'
-                      }`}
-                  >
-                    United States Flow
-                  </button>
-
-                  <span className="text-slate-300 font-light">/</span>
-
-                  <button
-                    onClick={() => setFlowType('CHINA')}
-                    className={`text-[13px] transition-all ${flowType === 'CHINA'
-                      ? 'text-slate-900 font-bold'
-                      : 'text-slate-400 font-medium hover:text-slate-600'
-                      }`}
-                  >
-                    China Flow
-                  </button>
-                </div>
-
                 <div className="text-[11px] text-[#868e96] flex items-center gap-4">
-                  <span className="flex items-center gap-1"><Database className="w-3 h-3" /> Source: Global Trade Monitor v4.2</span>
+                  <span className="flex items-center gap-1"><Database className="w-3 h-3" /> Source: Global Macro Engine v5.0</span>
                 </div>
               </div>
 
-              {/* Graph Workspace */}
               <div className="flex-1 relative overflow-hidden">
-                <SupplyChainGraph state={state} payoff={currentPayoff} resetKey={recalcTrigger} flowType={flowType} />
+                <SupplyChainGraph state={state} payoff={currentPayoff} resetKey={recalcTrigger} />
 
-                {/* Bottom Panel (Floating) */}
                 <div
-                  className={`absolute left-4 right-4 bg-white border border-[#dee2e6] rounded-lg shadow-2xl flex flex-col overflow-hidden z-20 ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-out'
-                    }`}
+                  className={`absolute left-4 right-4 bg-white border border-[#dee2e6] rounded-lg shadow-2xl flex flex-col overflow-hidden z-20 ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-out'}`}
                   style={{
                     bottom: '16px',
-                    height: isPanelMaximized
-                      ? 'calc(100% - 16px)'
-                      : isPanelCollapsed
-                        ? '40px'
-                        : `${panelHeight}px`
+                    height: isPanelMaximized ? 'calc(100% - 16px)' : isPanelCollapsed ? '40px' : `${panelHeight}px`
                   }}
                 >
                   <div
-                    className={`h-10 border-b border-[#dee2e6] flex items-center px-4 bg-[#f8f9fa] shrink-0 ${isDragging ? 'cursor-ns-resize' : 'cursor-pointer'
-                      } hover:bg-[#e9ecef] transition-colors relative group`}
+                    className={`h-10 border-b border-[#dee2e6] flex items-center px-4 bg-[#f8f9fa] shrink-0 ${isDragging ? 'cursor-ns-resize' : 'cursor-pointer'} hover:bg-[#e9ecef] transition-colors relative group`}
                     onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
                     onMouseDown={(e) => {
-                      // Only start dragging if clicking on the header itself, not buttons
                       if ((e.target as HTMLElement).closest('button')) return;
                       setIsDragging(true);
                       setDragStartY(e.clientY);
@@ -405,106 +603,67 @@ const App: React.FC = () => {
                       e.preventDefault();
                     }}
                   >
-                    {/* Drag Handle Indicator */}
                     <div className="absolute top-1 left-1/2 -translate-x-1/2 w-12 h-1 bg-slate-300 rounded-full group-hover:bg-slate-400 transition-colors" />
                     <div className="flex border border-[#dee2e6] rounded overflow-hidden shadow-sm my-1.5" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => { setBottomTab('trends'); setIsPanelCollapsed(false); }}
-                        className={`px-3 py-1 text-[11px] font-bold transition-all ${bottomTab === 'trends'
-                          ? 'bg-[#e7f5ff] text-[#1971c2] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]'
-                          : 'bg-white text-[#495057] hover:bg-[#f8f9fa]'
-                          }`}
+                        className={`px-3 py-1 text-[11px] font-bold transition-all ${bottomTab === 'trends' ? 'bg-[#e7f5ff] text-[#1971c2] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]' : 'bg-white text-[#495057] hover:bg-[#f8f9fa]'}`}
                       >
-                        Economic Trends
+                        Sector Trends
                       </button>
                       <div className="w-px bg-[#dee2e6]" />
                       <button
                         onClick={() => { setBottomTab('matrix'); setIsPanelCollapsed(false); }}
-                        className={`px-3 py-1 text-[11px] font-bold transition-all ${bottomTab === 'matrix'
-                          ? 'bg-[#e7f5ff] text-[#1971c2] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]'
-                          : 'bg-white text-[#495057] hover:bg-[#f8f9fa]'
-                          }`}
+                        className={`px-3 py-1 text-[11px] font-bold transition-all ${bottomTab === 'matrix' ? 'bg-[#e7f5ff] text-[#1971c2] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]' : 'bg-white text-[#495057] hover:bg-[#f8f9fa]'}`}
                       >
-                        Prisoner's Dilemma
+                        Macro Logic
                       </button>
                       <div className="w-px bg-[#dee2e6]" />
                       <button
                         onClick={() => { setBottomTab('log'); setIsPanelCollapsed(false); }}
-                        className={`px-3 py-1 text-[11px] font-bold transition-all ${bottomTab === 'log'
-                          ? 'bg-[#e7f5ff] text-[#1971c2] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]'
-                          : 'bg-white text-[#495057] hover:bg-[#f8f9fa]'
-                          }`}
+                        className={`px-3 py-1 text-[11px] font-bold transition-all ${bottomTab === 'log' ? 'bg-[#e7f5ff] text-[#1971c2] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]' : 'bg-white text-[#495057] hover:bg-[#f8f9fa]'}`}
                       >
-                        Game Log
+                        Timeline
                       </button>
                     </div>
                     <div className="ml-auto flex items-center gap-2 pr-1">
-                      {/* Red: Close/Collapse */}
-                      <div
-                        className="w-3 h-3 rounded-full bg-[#ff5f57] border border-[#e0443e] cursor-pointer hover:bg-[#ff3b30] shadow-sm transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsPanelCollapsed(true);
-                        }}
-                        title="Close Panel"
-                      />
-                      {/* Yellow: Reset to Medium */}
-                      <div
-                        className="w-3 h-3 rounded-full bg-[#febc2e] border border-[#d89e24] cursor-pointer hover:bg-[#ffcc00] shadow-sm transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsPanelMaximized(false);
-                          setIsPanelCollapsed(false);
-                          setPanelHeight(300);
-                        }}
-                        title="Restore Default Size"
-                      />
-                      {/* Green: Maximize */}
-                      <div
-                        className="w-3 h-3 rounded-full bg-[#28c840] border border-[#1aab29] cursor-pointer hover:bg-[#32d74b] shadow-sm transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsPanelMaximized(true);
-                          setIsPanelCollapsed(false);
-                        }}
-                        title="Maximize"
-                      />
+                      <div className="w-3 h-3 rounded-full bg-[#ff5f57] border border-[#e0443e] cursor-pointer hover:bg-[#ff3b30]" onClick={(e) => { e.stopPropagation(); setIsPanelCollapsed(true); }} />
+                      <div className="w-3 h-3 rounded-full bg-[#febc2e] border border-[#d89e24] cursor-pointer hover:bg-[#ffcc00]" onClick={(e) => { e.stopPropagation(); setIsPanelMaximized(false); setIsPanelCollapsed(false); setPanelHeight(300); }} />
+                      <div className="w-3 h-3 rounded-full bg-[#28c840] border border-[#1aab29] cursor-pointer hover:bg-[#32d74b]" onClick={(e) => { e.stopPropagation(); setIsPanelMaximized(true); setIsPanelCollapsed(false); }} />
                     </div>
                   </div>
                   <div className="flex-1 p-4 flex gap-6">
                     {bottomTab === 'trends' && (
                       <div className="w-64 shrink-0 flex flex-col gap-1.5 overflow-y-auto no-scrollbar border-r border-[#f1f3f5] pr-4">
                         <button
-                          onClick={() => setActiveMetric('pts_us')}
-                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_us'
-                            ? 'bg-[#e7f5ff] border-[#74c0fc]'
-                            : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
-                            }`}
+                          onClick={() => setActiveMetric('pts_tech')}
+                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_tech' ? 'bg-[#e7f5ff] border-[#74c0fc]' : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'}`}
                         >
-                          <div className={`font-bold leading-tight ${activeMetric === 'pts_us' ? 'text-[#1971c2]' : 'text-[#495057]'}`}>@pts_us</div>
-                          <div className={`text-[9px] leading-tight ${activeMetric === 'pts_us' ? 'text-[#1971c2]' : 'text-[#868e96]'}`}>United States</div>
+                          <div className={`font-bold leading-tight ${activeMetric === 'pts_tech' ? 'text-[#1971c2]' : 'text-[#495057]'}`}>Technology & AI</div>
                         </button>
-
                         <button
-                          onClick={() => setActiveMetric('pts_china')}
-                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_china'
-                            ? 'bg-[#fff5f5] border-[#ff8787]'
-                            : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
-                            }`}
+                          onClick={() => setActiveMetric('pts_manufacturing')}
+                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_manufacturing' ? 'bg-[#fff5f5] border-[#ff8787]' : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'}`}
                         >
-                          <div className={`font-bold leading-tight ${activeMetric === 'pts_china' ? 'text-[#e03131]' : 'text-[#495057]'}`}>@pts_china</div>
-                          <div className={`text-[9px] leading-tight ${activeMetric === 'pts_china' ? 'text-[#e03131]' : 'text-[#868e96]'}`}>China</div>
+                          <div className={`font-bold leading-tight ${activeMetric === 'pts_manufacturing' ? 'text-[#e03131]' : 'text-[#495057]'}`}>Global Manufacturing</div>
                         </button>
-
+                        <button
+                          onClick={() => setActiveMetric('pts_energy')}
+                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_energy' ? 'bg-[#fff4e6] border-[#ffa94d]' : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'}`}
+                        >
+                          <div className={`font-bold leading-tight ${activeMetric === 'pts_energy' ? 'text-[#e8590c]' : 'text-[#495057]'}`}>Energy & Resources</div>
+                        </button>
+                        <button
+                          onClick={() => setActiveMetric('pts_finance')}
+                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'pts_finance' ? 'bg-[#ebfbee] border-[#69db7c]' : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'}`}
+                        >
+                          <div className={`font-bold leading-tight ${activeMetric === 'pts_finance' ? 'text-[#2b8a3e]' : 'text-[#495057]'}`}>Financial Markets</div>
+                        </button>
                         <button
                           onClick={() => setActiveMetric('inflation_index')}
-                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'inflation_index'
-                            ? 'bg-[#f8f9fa] border-[#adb5bd]'
-                            : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'
-                            }`}
+                          className={`p-1.5 border rounded text-[10px] text-left transition-all ${activeMetric === 'inflation_index' ? 'bg-[#f8f9fa] border-[#adb5bd]' : 'bg-white border-[#dee2e6] hover:bg-[#f8f9fa]'}`}
                         >
-                          <div className={`font-bold leading-tight ${activeMetric === 'inflation_index' ? 'text-[#495057]' : 'text-[#495057]'}`}>@inflation_index</div>
-                          <div className={`text-[9px] leading-tight ${activeMetric === 'inflation_index' ? 'text-[#495057]' : 'text-[#868e96]'}`}>Global Average</div>
+                          <div className={`font-bold leading-tight ${activeMetric === 'inflation_index' ? 'text-[#495057]' : 'text-[#495057]'}`}>Global Average Inflation</div>
                         </button>
                       </div>
                     )}
@@ -515,7 +674,6 @@ const App: React.FC = () => {
                         <GameMatrix state={state} />
                       ) : (
                         <div className="h-full flex flex-col gap-3 min-h-0">
-                          {/* Cumulative Outcome Summary Header */}
                           {state.history.length > 0 && (
                             <div className="shrink-0 bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
                               <div className="flex items-center justify-between mb-2">
@@ -523,80 +681,20 @@ const App: React.FC = () => {
                                   <div className="bg-slate-100 p-1.5 rounded-md">
                                     <Terminal className="w-4 h-4 text-slate-600" />
                                   </div>
-                                  <h4 className="text-[12px] font-black uppercase tracking-wider text-slate-700">Cumulative Simulation Result</h4>
+                                  <h4 className="text-[12px] font-black uppercase tracking-wider text-slate-700">Cumulative Market State</h4>
                                 </div>
                                 <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-black">
-                                  <RotateCcw className="w-3 h-3" /> {state.history.length} ROUNDS COMPLETED
+                                  <RotateCcw className="w-3 h-3" /> {state.history.length} PERIODS
                                 </div>
                               </div>
-
-                              {(() => {
-                                // Calculate cumulative points
-                                const usTotal = state.history.reduce((sum, h) => sum + h.payoff.us.points, 0);
-                                const chinaTotal = state.history.reduce((sum, h) => sum + h.payoff.china.points, 0);
-                                const avgDiff = (usTotal - chinaTotal) / state.history.length;
-
-                                let status = "GLOBAL OPTIMUM";
-                                let desc = "Global Optimum: Maximum growth for both.";
-                                if (state.usStrategy === 'TARIFFS' && state.chinaStrategy === 'TARIFFS') {
-                                  status = "STRATEGIC STALEMATE";
-                                  desc = "Nash Equilibrium: Both retaliate; mutual loss.";
-                                }
-                                let icon = <ShieldAlert className="w-6 h-6 text-slate-400" />;
-                                let colorClass = "bg-slate-50 border-slate-200 text-slate-700";
-
-                                if (usTotal / state.history.length < 3 && chinaTotal / state.history.length < 3) {
-                                  status = "MUTUAL ATTRITION";
-                                  desc = "Economic Catastrophe: Decoupling complete; global recession.";
-                                  icon = <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />;
-                                  colorClass = "bg-amber-50 border-amber-200 text-amber-900";
-                                } else if (avgDiff > 0.8) {
-                                  status = "US STRATEGIC LEAD";
-                                  desc = "US protects jobs; China loses export revenue.";
-                                  icon = <Target className="w-6 h-6 text-blue-500" />;
-                                  colorClass = "bg-blue-50 border-blue-200 text-blue-900";
-                                } else if (avgDiff < -0.8) {
-                                  status = "CHINA STRATEGIC LEAD";
-                                  desc = "US loses manufacturing; China gains via protectionism.";
-                                  icon = <Brain className="w-6 h-6 text-red-500" />;
-                                  colorClass = "bg-red-50 border-red-200 text-red-900";
-                                }
-
-                                return (
-                                  <div className={`flex items-center gap-6 p-4 rounded-xl border-2 ${colorClass}`}>
-                                    <div className="bg-white p-3 rounded-full shadow-sm">
-                                      {icon}
-                                    </div>
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-4">
-                                        <span className="text-[20px] font-black tracking-tight uppercase leading-none">{status}</span>
-                                        <div className="flex items-center gap-4 ml-auto font-black text-[16px]">
-                                          <div className="flex flex-col items-center">
-                                            <span className="text-[10px] opacity-60 font-black uppercase tracking-widest">TOTAL UNITED STATES</span>
-                                            <span>{usTotal.toFixed(1)}</span>
-                                          </div>
-                                          <div className="w-px h-6 bg-current opacity-20" />
-                                          <div className="flex flex-col items-center">
-                                            <span className="text-[10px] opacity-60 font-black uppercase tracking-widest">TOTAL CN</span>
-                                            <span>{chinaTotal.toFixed(1)}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <p className="text-[13px] font-bold opacity-80 mt-1">{desc}</p>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
                             </div>
                           )}
 
-                          {/* History Timeline */}
                           <div className="flex-1 overflow-y-auto pr-1 space-y-3">
                             {state.history.length === 0 ? (
                               <div className="h-full flex flex-col items-center justify-center opacity-40 py-10">
                                 <History className="w-10 h-10 mb-2" />
                                 <p className="text-[12px] font-black uppercase tracking-widest">No history recorded</p>
-                                <p className="text-[10px] mt-2 text-center max-w-[200px]">Advance the round to start the simulation log.</p>
                               </div>
                             ) : (
                               [...state.history].reverse().map((entry, index) => (
@@ -607,28 +705,20 @@ const App: React.FC = () => {
                                     </div>
                                     {index !== state.history.length - 1 && <div className="w-px flex-1 bg-slate-200 my-1.5" />}
                                   </div>
-                                  <div className="flex-1 bg-white border border-slate-100 rounded-xl p-3 shadow-sm group-hover:border-slate-300 group-hover:shadow-md transition-all">
+                                  <div className="flex-1 bg-white border border-slate-100 rounded-xl p-3 shadow-sm group-hover:border-slate-300 transition-all">
                                     <div className="flex items-center justify-between mb-2">
                                       <div className="flex gap-6">
                                         <div className="flex flex-col">
-                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">UNITED STATES MOVE</span>
-                                          <span className={`text-[12px] font-black ${entry.usStrategy === 'FREE_TRADE' ? 'text-emerald-600' : 'text-blue-600'}`}>{entry.usStrategy.replace('_', ' ')}</span>
+                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">POLICY ACTION</span>
+                                          <span className={`text-[12px] font-black ${entry.policyStrategy === 'FREE_TRADE' ? 'text-emerald-600' : 'text-blue-600'}`}>{entry.policyStrategy.replace('_', ' ')}</span>
                                         </div>
                                         <div className="flex flex-col">
-                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">CN MOVE</span>
-                                          <span className={`text-[12px] font-black ${entry.chinaStrategy === 'FREE_TRADE' ? 'text-emerald-600' : 'text-red-600'}`}>{entry.chinaStrategy.replace('_', ' ')}</span>
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">OUTCOME</span>
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-[14px] font-black text-blue-600">{entry.payoff.us.points.toFixed(1)}</span>
-                                          <span className="text-[10px] font-bold text-slate-300">vs</span>
-                                          <span className="text-[14px] font-black text-red-600">{entry.payoff.china.points.toFixed(1)}</span>
+                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">INDUSTRY RESPONSE</span>
+                                          <span className={`text-[12px] font-black ${entry.industryStrategy === 'EXPANSION' ? 'text-emerald-600' : 'text-amber-600'}`}>{entry.industryStrategy.replace('_', ' ')}</span>
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="mt-2 text-[11px] text-slate-500 font-bold italic leading-relaxed border-t border-slate-50 pt-2 opacity-90">
+                                    <div className="mt-2 text-[11px] text-slate-500 font-bold italic border-t border-slate-50 pt-2 opacity-90">
                                       {entry.payoff.description}
                                     </div>
                                   </div>
@@ -643,94 +733,382 @@ const App: React.FC = () => {
                 </div>
               </div>
             </>
-          ) : (
+          ) : currentView === 'trade_routes' ? (
             <TradeRoutes state={state} />
+          ) : currentView === 'risk_dashboard' ? (
+            <div className="flex-1 flex flex-col relative overflow-hidden bg-white">
+              <RiskDashboard
+                selectedNetworkId={selectedNetworkId}
+                setSelectedNetworkId={setSelectedNetworkId}
+                selectedComponentId={selectedComponentId}
+                setSelectedComponentId={setSelectedComponentId}
+                selectedNodeId={selectedNodeId}
+                setSelectedNodeId={setSelectedNodeId}
+                onNodeSelected={() => {
+                  setBottomTab('log');
+                  setIsPanelCollapsed(false);
+                }}
+                onStepChange={(step) => setWizardStep(step)}
+                isEditMode={isEditMode}
+                networks={networks}
+                setNetworks={setNetworks}
+                onGraphStateChange={setGraphState}
+                hiddenCategories={hiddenCategories}
+              />
+
+              {/* Re-using identical bottom dock logic but with Neural data - only show if a network is selected */}
+              {selectedNetworkId && (
+                <div
+                  className={`absolute left-4 right-4 bg-white border border-[#dee2e6] rounded-t-lg shadow-2xl flex flex-col overflow-hidden z-20 ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-out'}`}
+                  style={{
+                    bottom: '0',
+                    height: isPanelMaximized ? 'calc(100% - 16px)' : isPanelCollapsed ? '40px' : `${panelHeight}px`
+                  }}
+                >
+                  <div
+                    className={`h-10 border-b border-[#dee2e6] flex items-center px-4 bg-[#f8f9fa] shrink-0 ${isDragging ? 'cursor-ns-resize' : 'cursor-pointer'} hover:bg-[#e9ecef] transition-colors relative group`}
+                    onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+                  >
+                    <div className="flex border border-[#dee2e6] rounded overflow-hidden shadow-sm my-1.5" onClick={(e) => e.stopPropagation()}>
+                      {['Sector Trends', 'Macro Logic', 'Protection ROI'].map(t => (
+                        <button
+                          key={t}
+                          onClick={() => { setActiveBottomTab(t.toUpperCase().replace(' ', '_')); setIsPanelCollapsed(false); }}
+                          className={`px-3 py-1 text-[11px] font-bold transition-all ${activeBottomTab === t.toUpperCase().replace(' ', '_') ? 'bg-[#e7f5ff] text-[#1971c2]' : 'bg-white text-[#495057] hover:bg-[#f8f9fa]'}`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="ml-auto flex items-center gap-2 pr-1">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+                    </div>
+                  </div>
+                  <div className="flex-1 p-6 flex gap-10 overflow-hidden">
+                    {activeBottomTab === 'SECTOR_TRENDS' && (
+                      <div className="flex-1 flex gap-10">
+                        <div className="w-64 shrink-0 flex flex-col gap-1.5 overflow-y-auto no-scrollbar pr-4">
+                          {(selectedNetwork?.genealogy || []).map((c: any) => (
+                            <button
+                              key={c.id}
+                              onClick={() => setSelectedComponentId(c.id)}
+                              className={`p-2 border rounded text-[10px] text-left transition-all ${selectedComponentId === c.id ? 'bg-[#e7f5ff] border-blue-400' : 'bg-white border-slate-200'}`}
+                            >
+                              <div className="font-black uppercase">{c.name}</div>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex-1 h-full min-w-0">
+                          <div className="flex items-center justify-between mb-4">
+                            <h5 className="text-[10px] font-black text-[#1c1e21] uppercase tracking-widest">Architect Price Delta // {selectedNode?.name}</h5>
+                          </div>
+                          <MaterialTrendChart risk={selectedNode?.riskScore || 50} />
+                        </div>
+                      </div>
+                    )}
+                    {activeBottomTab === 'PROTECTION_ROI' && (
+                      <SavingsDashboard
+                        predictionLog={state.predictionLog}
+                        selectedMaterialId={selectedNodeId}
+                        selectedMaterialName={selectedNode?.name}
+                        currentPrice={selectedNode ? (selectedNode.basePrice || 100) * (1 + (selectedNode.riskScore / 100)) : null}
+                        unit={selectedNode?.unit}
+                        onSimulate={calculateFutureProjection}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <AppSettings />
           )}
         </main>
 
-        {/* Right Sidebar (Config) */}
-        <aside className="w-80 border-l border-[#dfe3e6] bg-white flex flex-col shrink-0">
-          <div className="h-12 border-b border-[#dee2e6] flex items-center px-4 gap-6 shrink-0">
-            <button
-              onClick={() => setActiveTab('config')}
-              className={`text-[11px] font-bold uppercase tracking-wider h-12 ${activeTab === 'config' ? 'text-[#228be6] border-b-2 border-[#228be6]' : 'text-[#adb5bd]'}`}
-            >
-              Model Config
-            </button>
-            <button
-              onClick={() => setActiveTab('intel')}
-              className={`text-[11px] font-bold uppercase tracking-wider h-12 ${activeTab === 'intel' ? 'text-[#228be6] border-b-2 border-[#228be6]' : 'text-[#adb5bd]'}`}
-            >
-              Simulation
-            </button>
-          </div>
+        {!(currentView === 'risk_dashboard' && !selectedNetworkId) && (
+          <aside className="w-[340px] border-l border-[#dfe3e6] bg-white flex flex-col shrink-0">
+            <div className="h-12 border-b border-[#dee2e6] flex items-center px-4 gap-6 shrink-0 bg-white">
+              <button
+                onClick={() => setActiveTab('config')}
+                className={`text-[10px] font-black uppercase tracking-[0.2em] h-12 transition-all ${activeTab === 'config' ? 'text-[#228be6] border-b-2 border-[#228be6]' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Forecast Intelligence
+              </button>
+              <button
+                onClick={() => setActiveTab('intel')}
+                className={`text-[10px] font-black uppercase tracking-[0.2em] h-12 transition-all ${activeTab === 'intel' ? 'text-[#228be6] border-b-2 border-[#228be6]' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Simulation Overrides
+              </button>
+            </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#f8f9fa]/50">
-            {activeTab === 'config' ? (
-              <>
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-white">
+              {currentView === 'risk_dashboard' ? (
+                selectedNetworkId ? (
+                  <div className="space-y-6">
+                    <section>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2 ml-1">
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block">Architect Mode</span>
+                          <div className="w-0.5 h-2.5 rounded-full bg-slate-300" />
+                        </div>
+                        <button onClick={() => setIsEditMode(!isEditMode)} className={`px-2 py-0.5 rounded text-[8px] font-black ${isEditMode ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                          {isEditMode ? 'COMMIT DNA' : 'EDIT MODE'}
+                        </button>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                        <div>
+                          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entity Name</label>
+                          <input
+                            type="text"
+                            className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[12px] font-black outline-none focus:border-blue-500"
+                            value={selectedNode?.name || ''}
+                            onChange={(e) => {
+                              const name = e.target.value;
+                              setNetworks(prev => prev.map(net => {
+                                if (net.id === selectedNetworkId) {
+                                  return { ...net, genealogy: net.genealogy.map((comp: any) => comp.id === selectedNodeId ? { ...comp, name } : { ...comp, children: comp.children?.map((m: any) => m.id === selectedNodeId ? { ...m, name } : m) }) };
+                                }
+                                return net;
+                              }));
+                            }}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Risk Index</label>
+                            <input
+                              type="number"
+                              className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] font-black outline-none focus:border-blue-500"
+                              value={selectedNode?.riskScore || 0}
+                              onChange={(e) => {
+                                const riskScore = parseInt(e.target.value);
+                                setNetworks(prev => prev.map(net => {
+                                  if (net.id === selectedNetworkId) {
+                                    return { ...net, genealogy: net.genealogy.map((comp: any) => comp.id === selectedNodeId ? { ...comp, riskScore } : { ...comp, children: comp.children?.map((m: any) => m.id === selectedNodeId ? { ...m, riskScore } : m) }) };
+                                  }
+                                  return net;
+                                }));
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Ticker ID</label>
+                            <input
+                              type="text"
+                              className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] font-black outline-none focus:border-blue-500"
+                              value={selectedNode?.ticker || ''}
+                              onChange={(e) => {
+                                const ticker = e.target.value;
+                                setNetworks(prev => prev.map(net => {
+                                  if (net.id === selectedNetworkId) {
+                                    return { ...net, genealogy: net.genealogy.map((comp: any) => comp.id === selectedNodeId ? { ...comp, ticker } : { ...comp, children: comp.children?.map((m: any) => m.id === selectedNodeId ? { ...m, ticker } : m) }) };
+                                  }
+                                  return net;
+                                }));
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </section>
 
+                    <section className="bg-blue-50 border border-blue-100 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center gap-2"><Brain className="w-3.5 h-3.5 text-blue-600" /><span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Architect Insights</span></div>
+                      <p className="text-[11px] text-blue-800/80 leading-relaxed italic">DNA modifications will propagate to the global macro simulation in the next round.</p>
+                    </section>
 
-                <section>
-                  <label className="text-[10px] font-black text-[#868e96] uppercase tracking-widest block mb-2">Policy Levers</label>
-                  <div className="flex flex-col gap-6">
-                    <StrategyToggle
-                      label="United States Protocol"
-                      value={state.usStrategy}
-                      focusValue={state.usBanFocus}
-                      onChange={(s) => setState(prev => ({ ...prev, usStrategy: s }))}
-                      onFocusChange={(f) => setState(prev => ({ ...prev, usBanFocus: f }))}
-                      accentColor="blue"
-                      options={['AI_CHIPS', 'CHIP_GEAR', 'CLOUD_TECH']}
-                    />
+                    {/* Neural Radar MiniMap */}
+                    {graphState && graphState.allNodes.length > 0 && (
+                      <section>
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
+                          Neural Radar
+                        </div>
+                        <div className="rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                          <NeuralMiniMap
+                            allNodes={graphState.allNodes}
+                            viewState={graphState.viewState}
+                            setViewState={graphState.setViewState}
+                          />
+                        </div>
+                      </section>
+                    )}
+
+                    {/* Architect Legend — interactive filter */}
+                    <section>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+                          Architect Legend
+                        </div>
+                        {hiddenCategories.size > 0 && (
+                          <button
+                            onClick={() => setHiddenCategories(new Set())}
+                            className="text-[7px] font-black uppercase tracking-widest text-blue-500 hover:text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 transition-all"
+                          >
+                            Show All
+                          </button>
+                        )}
+                      </div>
+                      <SupplyChainLegend
+                        inline
+                        hiddenCategories={hiddenCategories}
+                        onToggleCategory={toggleCategory}
+                        availableCategories={availableCategories}
+                      />
+                    </section>
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center opacity-50 px-4 pb-20">
+                    <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                      <Layers className="w-6 h-6 text-slate-300" />
+                    </div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-[#868e96] mb-2">Global Repository Active</h4>
+                    <p className="text-[10px] font-medium text-slate-400">Select an operational neural network from the repository or initialize a new stack to view and modify component DNA parameters.</p>
+                  </div>
+                )
+              ) : activeTab === 'config' ? (
+                <div className="flex flex-col h-full overflow-hidden px-4">
+                  <div className="space-y-6 flex-1 overflow-y-auto pr-2 pb-4 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent min-h-0">
+                    {/* Timeline Projector */}
+                    <section className="space-y-4">
+                      <div className="flex items-center gap-2 ml-1">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Timeline Projector</span>
+                        <div className="w-0.5 h-3 rounded-full bg-blue-500" />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors group relative">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Injected Context</span>
+                            {simulationDate !== '2026-04-16' && (
+                              <button 
+                                onClick={() => setSimulationDate('2026-04-16')}
+                                className="text-[7px] font-black uppercase text-blue-500 hover:text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Reset Timeline to Today"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                          <div className="text-[12px] font-black text-slate-700 flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5 text-blue-500" />
+                            {simulationDate}
+                          </div>
+                        </div>
+                        <div className="bg-white border border-blue-100 rounded-lg p-3 shadow-sm ring-1 ring-blue-50 hover:border-blue-200 transition-colors">
+                          <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest block mb-1">Target Horizon</span>
+                          <input
+                            type="date"
+                            value={targetDate}
+                            onChange={(e) => setTargetDate(e.target.value)}
+                            className="w-full text-[12px] font-black text-blue-600 outline-none bg-transparent cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* Market Sync Status */}
+                    <div className="flex items-center justify-between px-3 py-2 bg-blue-50/50 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Globe className={`w-3.5 h-3.5 ${marketsLoading ? 'animate-spin text-blue-400' : 'text-blue-600'}`} />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-blue-700">Polymarket Genesis Sync</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {marketsLoading ? (
+                          <span className="text-[8px] font-bold text-blue-400 uppercase animate-pulse">Polling Data...</span>
+                        ) : (
+                          <>
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                            <span className="text-[8px] font-bold text-emerald-600 uppercase">Live Index</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
                     <div className="h-px bg-slate-100" />
 
-                    <StrategyToggle
-                      label="China Protocol"
-                      value={state.chinaStrategy}
-                      focusValue={state.chinaBanFocus}
-                      onChange={(s) => setState(prev => ({ ...prev, chinaStrategy: s }))}
-                      onFocusChange={(f) => setState(prev => ({ ...prev, chinaBanFocus: f }))}
-                      accentColor="red"
-                      options={['RARE_EARTHS', 'EV_MINERALS', 'LEGACY_CHIPS']}
-                    />
-                  </div>
-                </section>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <AIAdvisor state={state} scenario={SCENARIOS[state.scenario]} />
-                <div className="bg-white border border-[#dee2e6] p-4 rounded-lg shadow-sm">
-                  <h4 className="text-[11px] font-bold text-[#495057] uppercase mb-3 flex items-center gap-2">
-                    <History className="w-3 h-3" /> Graph History
-                  </h4>
-                  <div className="space-y-2">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="text-[10px] p-2 bg-[#f8f9fa] rounded flex items-center justify-between border border-[#f1f3f5]">
-                        <span className="text-[#495057]">Checkpoint v1.{i}</span>
-                        <span className="text-[#adb5bd]">2m ago</span>
+                    {/* Intelligence Feed */}
+                    <section className="space-y-4">
+                      <div className="flex items-center justify-between ml-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Automated Intelligence Feed</span>
+                          <div className="w-0.5 h-3 rounded-full bg-amber-500" />
+                        </div>
+                        <div className="flex items-center gap-1.5 opacity-60">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[8px] font-black uppercase tracking-widest">LIVE</span>
+                        </div>
                       </div>
-                    ))}
+
+                      <div className="space-y-3">
+                        {activeEvents.map(event => (
+                          <EventIntelCard key={event.id} event={event} />
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                  
+                  {/* Main Action Call - Pinned to bottom */}
+                  <div className="pt-4 mt-auto border-t border-slate-100 shrink-0">
+                    <button
+                      onClick={calculateFutureProjection}
+                      disabled={isRecalculating}
+                      className={`w-full py-2.5 rounded-lg font-bold text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2
+                            ${isRecalculating
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 active:scale-[0.98] shadow-sm hover:shadow'
+                        }`}
+                    >
+                      {isRecalculating ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5 fill-current" />
+                          Sync Global Future
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[9px] text-center text-slate-400 mt-4 font-bold uppercase tracking-widest italic opacity-60">
+                      Inference engine scales with target horizon volatility.
+                    </p>
                   </div>
                 </div>
+              ) : (
+                <div className="space-y-4">
+                  <AIAdvisor state={state} scenario={SCENARIOS[state.scenario]} payoff={currentPayoff} />
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-[#dee2e6] bg-[#f8f9fa] shadow-[0_-4px_16px_rgba(0,0,0,0.02)] shrink-0 max-h-[300px] overflow-y-auto">
+              <div className="p-3 bg-[#e9ecef] border-b border-[#dee2e6] flex items-center justify-between sticky top-0 z-10">
+                <div className="flex items-center gap-2 ml-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#495057]">Global Sector Health</span>
+                  <div className="w-0.5 h-2.5 rounded-full bg-slate-400" />
+                </div>
               </div>
-            )}
-          </div>
-
-          {/* Side HUD Footer */}
-          <div className="border-t border-[#dee2e6] p-4 space-y-2 bg-white">
-            <EconomyHUD country="United States" state={currentPayoff.us} color="blue" />
-            <EconomyHUD country="China" state={currentPayoff.china} color="red" />
-
-          </div>
-        </aside>
+              <div className="p-3 grid grid-cols-2 gap-3">
+                <EconomyHUD sector={getLiveSector(currentPayoff.sectors.TECH, liveJitter.tech)} color="blue" />
+                <EconomyHUD sector={getLiveSector(currentPayoff.sectors.FINANCE, liveJitter.finance)} color="green" />
+                <EconomyHUD sector={getLiveSector(currentPayoff.sectors.MANUFACTURING, liveJitter.mfg)} color="red" />
+                <EconomyHUD sector={getLiveSector(currentPayoff.sectors.ENERGY, liveJitter.energy)} color="orange" />
+              </div>
+            </div>
+          </aside>
+        )}
       </div>
 
-      {/* Tiny Status Footer */}
       <footer className="h-6 bg-[#1c1e21] flex items-center px-4 justify-between text-[10px] text-[#adb5bd] font-medium shrink-0">
         <div className="flex gap-4">
-          <span>Project: GEOPOLITICAL_CORE_V4</span>
-          <span>Workspace: Main Flow</span>
+          <span>Project: GEOPOLITICAL_CORE_V5</span>
+          <span>Workspace: Industry Simulator</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[#37b24d]" />

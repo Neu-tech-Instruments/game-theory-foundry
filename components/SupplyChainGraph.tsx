@@ -1,5 +1,4 @@
-
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { GameState, Payoff } from '../types';
 import { BAN_METRICS } from '../constants';
 import {
@@ -14,27 +13,24 @@ import {
   LayoutGrid,
   TriangleAlert,
   ShieldBan,
-  CircleAlert
+  CircleAlert,
+  Globe,
+  Activity
 } from 'lucide-react';
 
 interface Props {
   state: GameState;
   payoff: Payoff;
   resetKey?: number;
-  flowType: 'US' | 'CHINA';
 }
 
-export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flowType }) => {
+export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-  // Track dragging state
   const [draggingId, setDraggingId] = useState<string | null>(null);
-
-  // Store custom positions: { [id]: { x: number, y: number } }
   const [customPositions, setCustomPositions] = useState<Record<string, { x: number, y: number }>>({});
 
-  // Reset positions when resetKey changes
   useEffect(() => {
     setCustomPositions({});
   }, [resetKey]);
@@ -49,85 +45,70 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
       }
     };
 
-    // Initial measure
     updateDimensions();
 
     const observer = new ResizeObserver(updateDimensions);
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
+    if (containerRef.current) observer.observe(containerRef.current);
 
     return () => observer.disconnect();
   }, []);
 
-  /* ZOOM & PAN STATE */
   const [viewState, setViewState] = useState({ scale: 1, x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
+  // Keep a live ref so event handlers always read current values without re-subscribing
+  const viewStateRef = useRef(viewState);
+  useEffect(() => { viewStateRef.current = viewState; }, [viewState]);
 
-  // Handle Zoom (Wheel / Trackpad Pinch)
+  const draggingIdRef = useRef<string | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const isPanningRef = useRef(false);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-
       const rect = el.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
       setViewState(prev => {
-        // Sensitivity factor - negative deltaY means zoom in (scrolling up)
         const zoomFactor = -e.deltaY * 0.01;
         const newScale = Math.min(Math.max(0.5, prev.scale + zoomFactor), 4);
-
-        // Calculate the mouse position relative to the content before scaling
         const contentX = (mouseX - prev.x) / prev.scale;
         const contentY = (mouseY - prev.y) / prev.scale;
-
-        // Calculate new X/Y to keep mouse point stable
         const newX = mouseX - (contentX * newScale);
         const newY = mouseY - (contentY * newScale);
-
         return { scale: newScale, x: newX, y: newY };
       });
     };
 
-    // Use passive: false to allow preventing default scroll
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // Handle global mouse move/up for dragging & panning
+  // Single, stable global mouse handler — reads refs so it never needs to re-register
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      // 1. Handle Node Dragging
-      if (draggingId && containerRef.current) {
+      const currentDraggingId = draggingIdRef.current;
+      if (currentDraggingId && containerRef.current) {
+        const vs = viewStateRef.current;
         const rect = containerRef.current.getBoundingClientRect();
-
-        // Mouse position in Container space
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
-
-        // Inverse Transform: Convert to Inner Content space
-        const innerX = (mx - viewState.x) / viewState.scale;
-        const innerY = (my - viewState.y) / viewState.scale;
-
-        // Convert to percentage
+        const innerX = (mx - vs.x) / vs.scale;
+        const innerY = (my - vs.y) / vs.scale;
         let newX = (innerX / rect.width) * 100;
         let newY = (innerY / rect.height) * 100;
-
-        // Clamp
         newX = Math.max(0, Math.min(100, newX));
         newY = Math.max(0, Math.min(100, newY));
 
         setCustomPositions(prev => ({
           ...prev,
-          [draggingId]: { x: newX, y: newY }
+          [currentDraggingId]: { x: newX, y: newY }
         }));
-      }
-      // 2. Handle Canvas Panning
-      else if (isPanning) {
+      } else if (isPanningRef.current) {
+        // movementX/Y is always current — no stale state needed
         setViewState(prev => ({
           ...prev,
           x: prev.x + e.movementX,
@@ -137,70 +118,70 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
     };
 
     const handleMouseUp = () => {
+      draggingIdRef.current = null;
+      isPanningRef.current = false;
       setDraggingId(null);
       setIsPanning(false);
     };
 
-    if (draggingId || isPanning) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-    }
-
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingId, isPanning, viewState, dimensions]);
+  // Intentionally empty — handler uses refs for all runtime values
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Define base node positions
-  const usBaseNodes = [
-    { id: 'us-source', type: 'warehouse', label: 'United States Hub', icon: Building2, x: 10, y: 40, color: '#339af0' },
-    { id: 'inventory-1', type: 'inventory', label: BAN_METRICS[state.usBanFocus].label, icon: Box, x: 25, y: 30, color: '#40c057' },
-    { id: 'inventory-2', type: 'inventory', label: BAN_METRICS[state.chinaBanFocus].label, icon: Box, x: 25, y: 40, color: '#40c057' },
-    { id: 'inventory-3', type: 'inventory', label: 'Commodities', icon: Box, x: 25, y: 50, color: '#40c057' },
+  // Industry-agnostic nodes mapping
+  const baseNodes = [
+    { id: 'raw', type: 'warehouse', label: 'Raw Minerals', icon: Database, x: 10, y: 20, color: '#e8590c' },
+    { id: 'energy', type: 'warehouse', label: 'Energy Grids', icon: Building2, x: 10, y: 50, color: '#e8590c' },
+    { id: 'capital', type: 'warehouse', label: 'Capital Markets', icon: Building2, x: 10, y: 80, color: '#2b8a3e' },
 
-    { id: 'proc-1', type: 'process', label: 'NYC Tech', icon: LayoutGrid, x: 55, y: 15, color: '#fab005' },
-    { id: 'proc-2', type: 'process', label: 'DC Systems', icon: LayoutGrid, x: 55, y: 25, color: '#fab005' },
-    { id: 'proc-3', type: 'process', label: 'PIT Infrastructure', icon: LayoutGrid, x: 55, y: 35, color: '#fab005' },
-    { id: 'proc-4', type: 'process', label: 'Global SaaS', icon: LayoutGrid, x: 55, y: 45, color: '#fab005' },
-    { id: 'proc-5', type: 'process', label: 'Global Network', icon: LayoutGrid, x: 55, y: 55, color: '#fab005' },
+    { id: 'mfg-1', type: 'process', label: 'Heavy Manufacturing', icon: Factory, x: 35, y: 35, color: '#e03131' },
+    { id: 'tech-1', type: 'process', label: 'Semiconductors', icon: Cpu, x: 35, y: 65, color: '#1971c2' },
 
-    { id: 'finished-1', type: 'inventory', label: 'Market Access', icon: Box, x: 75, y: 30, color: '#40c057' },
-    { id: 'finished-2', type: 'inventory', label: 'Trade Balance', icon: Box, x: 75, y: 55, color: '#40c057' },
+    { id: 'mfg-2', type: 'inventory', label: 'Consumer Goods', icon: Box, x: 60, y: 35, color: '#e03131' },
+    { id: 'tech-2', type: 'inventory', label: 'Cloud Infrastructure', icon: Box, x: 60, y: 65, color: '#1971c2' },
 
-    { id: 'customer', type: 'customer', label: 'Global Consumer', icon: User, x: 92, y: 40, color: '#e64980' },
+    { id: 'market-1', type: 'customer', label: 'B2B Services', icon: User, x: 88, y: 35, color: '#495057' },
+    { id: 'market-2', type: 'customer', label: 'Retail Consumer', icon: User, x: 88, y: 65, color: '#495057' },
   ];
 
-  const chinaBaseNodes = [
-    { id: 'cn-source', type: 'warehouse', label: 'China Hub', icon: Building2, x: 8, y: 32, color: '#e03131' },
+  const nodes = baseNodes.map(node => {
+    // Map payoff sector IDs to nodes
+    // raw -> ENERGY, energy -> ENERGY, capital -> FINANCE, mfg -> MANUFACTURING, tech -> TECH
+    const sectorIdMap: Record<string, MapMode> = {
+        'raw': 'ENERGY',
+        'energy': 'ENERGY',
+        'capital': 'FINANCE',
+        'mfg-1': 'MANUFACTURING',
+        'mfg-2': 'MANUFACTURING',
+        'tech-1': 'TECH',
+        'tech-2': 'TECH',
+        'market-1': 'FINANCE',
+        'market-2': 'FINANCE'
+    };
+    
+    const sectorState = payoff.sectors[sectorIdMap[node.id]];
+    const panicIndex = sectorState?.panicIndex || 0;
 
-    { id: 'cn-us-import', type: 'inventory', label: BAN_METRICS[state.usBanFocus].label, icon: Box, x: 22, y: 8, color: '#339af0' },
-    { id: 'cn-raw', type: 'inventory', label: 'Rare Earths', icon: Database, x: 22, y: 44, color: '#fab005' },
-    { id: 'cn-inventory-1', type: 'inventory', label: 'Raw Materials', icon: Box, x: 22, y: 26, color: '#40c057' },
-
-    { id: 'cn-proc-1', type: 'process', label: 'Regional Hub', icon: LayoutGrid, x: 40, y: 12, color: '#339af0' },
-    { id: 'cn-proc-2', type: 'process', label: 'Component Mfg', icon: LayoutGrid, x: 40, y: 32, color: '#339af0' },
-    { id: 'cn-mfg-1', type: 'process', label: 'Shenzhen Mfg', icon: Factory, x: 40, y: 52, color: '#339af0' },
-
-    { id: 'cn-inventory-2', type: 'inventory', label: 'Intermediate', icon: Box, x: 58, y: 20, color: '#40c057' },
-    { id: 'cn-proc-3', type: 'process', label: 'Assembly Line', icon: Factory, x: 58, y: 40, color: '#339af0' },
-    { id: 'cn-mfg-2', type: 'process', label: 'Shanghai Port', icon: Factory, x: 58, y: 60, color: '#339af0' },
-
-    { id: 'cn-export-1', type: 'inventory', label: 'World Markets', icon: Box, x: 76, y: 20, color: '#40c057' },
-    { id: 'cn-export-2', type: 'inventory', label: 'United States Exports', icon: Box, x: 76, y: 44, color: '#40c057' },
-
-    { id: 'cn-customer', type: 'customer', label: 'Global Market', icon: User, x: 92, y: 32, color: '#e64980' },
-  ];
-
-  const currentBaseNodes = flowType === 'US' ? usBaseNodes : chinaBaseNodes;
-
-  // Merge base positions with custom dragged positions
-  const nodes = currentBaseNodes.map(node => {
+    let basePos = node;
     if (customPositions[node.id]) {
-      return { ...node, ...customPositions[node.id] };
+      basePos = { ...node, ...customPositions[node.id] };
     }
-    return node;
+    return { ...basePos, panicIndex };
   });
+
+  const isBannedPath = (fromId: string) => {
+    if (state.policyStrategy !== 'EXPORT_BANS') return false;
+    if (state.bannedAsset === 'SEMICONDUCTORS' && fromId === 'tech-1') return true;
+    if (state.bannedAsset === 'RAW_MINERALS' && fromId === 'raw') return true;
+    if (state.bannedAsset === 'SOFTWARE_IP' && fromId === 'tech-2') return true;
+    return false;
+  };
 
   const renderLink = (fromId: string, toId: string, customWeight?: string) => {
     if (dimensions.width === 0 || dimensions.height === 0) return null;
@@ -210,7 +191,6 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
 
     if (!from || !to) return null;
 
-    // Convert % to pixels
     const startX = (from.x / 100) * dimensions.width;
     const startY = (from.y / 100) * dimensions.height;
     const endX = (to.x / 100) * dimensions.width;
@@ -221,23 +201,21 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
     const cp2x = startX + (endX - startX) * 0.5;
     const cp2y = endY;
 
-    const isActive = !(
-      (state.chinaStrategy === 'EXPORT_BANS' && fromId === 'inventory-2') ||
-      (state.usStrategy === 'EXPORT_BANS' && fromId === 'cn-us-import')
-    );
+    const blocked = isBannedPath(fromId);
+    const tarified = state.policyStrategy === 'TARIFFS';
 
     return (
       <g key={`${fromId}-${toId}`}>
         <path
           d={`M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`}
           fill="none"
-          stroke={isActive ? '#adb5bd' : '#f1f3f5'}
-          strokeWidth={isActive ? 2.5 : 1}
-          strokeOpacity={isActive ? 0.4 : 0.1}
-          className={isActive ? "flow-line" : ""}
+          stroke={blocked ? '#ff8787' : tarified ? '#ffd43b' : '#adb5bd'}
+          strokeWidth={blocked || tarified ? 2 : 1}
+          strokeOpacity={blocked ? 0.8 : tarified ? 0.6 : 0.2}
+          className={!blocked ? "flow-line" : ""}
           style={{ transition: draggingId ? 'none' : 'all 0.5s ease' }}
         />
-        {isActive && Math.random() > 0.7 && (
+        {!blocked && Math.random() > 0.4 && (
           <text
             x={(startX + endX) / 2}
             y={(startY + endY) / 2 - 10}
@@ -247,7 +225,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
             className="select-none"
             textAnchor="middle"
           >
-            {customWeight || (Math.random() * 50).toFixed(2)}
+            {customWeight || (Math.random() * 50).toFixed(2)} <tspan fontSize="7" opacity="0.5">pts</tspan>
           </text>
         )}
       </g>
@@ -258,7 +236,7 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
     <div
       ref={containerRef}
       className="absolute inset-0 overflow-hidden bg-[#f8f9fa] cursor-grab active:cursor-grabbing"
-      onMouseDown={() => setIsPanning(true)}
+      onMouseDown={() => { isPanningRef.current = true; setIsPanning(true); }}
     >
       <div
         className="w-full h-full origin-top-left will-change-transform"
@@ -267,71 +245,30 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
         }}
       >
         <svg className="w-full h-full pointer-events-none overflow-visible">
-          {flowType === 'US' ? (
-            <>
-              {renderLink('us-source', 'inventory-1')}
-              {renderLink('us-source', 'inventory-2')}
-              {renderLink('us-source', 'inventory-3')}
+          {renderLink('raw', 'mfg-1')}
+          {renderLink('raw', 'tech-1')}
+          {renderLink('energy', 'mfg-1')}
+          {renderLink('energy', 'tech-1')}
+          {renderLink('capital', 'tech-1')}
+          {renderLink('capital', 'mfg-1')}
 
-              {['proc-1', 'proc-2', 'proc-3', 'proc-4', 'proc-5'].map(p => (
-                <React.Fragment key={p}>
-                  {renderLink('inventory-1', p)}
-                  {renderLink('inventory-2', p)}
-                  {renderLink('inventory-3', p)}
-                </React.Fragment>
-              ))}
-
-              {renderLink('proc-1', 'finished-1')}
-              {renderLink('proc-2', 'finished-1')}
-              {renderLink('proc-3', 'finished-1')}
-              {renderLink('proc-4', 'finished-2')}
-              {renderLink('proc-5', 'finished-2')}
-
-              {renderLink('finished-1', 'customer', '220.77')}
-              {renderLink('finished-2', 'customer', '211.18')}
-            </>
-          ) : (
-            <>
-              {renderLink('cn-source', 'cn-us-import')}
-              {renderLink('cn-source', 'cn-raw')}
-              {renderLink('cn-source', 'cn-inventory-1')}
-
-              {renderLink('cn-us-import', 'cn-proc-1')}
-              {renderLink('cn-us-import', 'cn-proc-2')}
-
-              {renderLink('cn-inventory-1', 'cn-proc-1')}
-              {renderLink('cn-inventory-1', 'cn-proc-2')}
-
-              {renderLink('cn-raw', 'cn-proc-2')}
-              {renderLink('cn-raw', 'cn-mfg-1')}
-
-              {renderLink('cn-proc-1', 'cn-inventory-2')}
-              {renderLink('cn-proc-2', 'cn-inventory-2')}
-
-              {renderLink('cn-inventory-2', 'cn-proc-3')}
-
-              {renderLink('cn-mfg-1', 'cn-proc-3')}
-              {renderLink('cn-mfg-1', 'cn-mfg-2')}
-
-              {renderLink('cn-proc-3', 'cn-export-1')}
-              {renderLink('cn-proc-3', 'cn-export-2')}
-
-              {renderLink('cn-mfg-2', 'cn-export-1')}
-              {renderLink('cn-mfg-2', 'cn-export-2')}
-
-              {renderLink('cn-export-1', 'cn-customer')}
-              {renderLink('cn-export-2', 'cn-customer')}
-            </>
-          )}
+          {renderLink('mfg-1', 'mfg-2')}
+          {renderLink('tech-1', 'mfg-2')}
+          {renderLink('tech-1', 'tech-2')}
+          
+          {renderLink('mfg-2', 'market-1')}
+          {renderLink('mfg-2', 'market-2')}
+          {renderLink('tech-2', 'market-1')}
+          {renderLink('tech-2', 'market-2')}
         </svg>
 
-        {/* Nodes Render */}
         {nodes.map(node => (
           <div
             key={node.id}
             onMouseDown={(e) => {
-              e.stopPropagation(); // Stop panning when dragging starts
+              e.stopPropagation();
               e.preventDefault();
+              draggingIdRef.current = node.id;
               setDraggingId(node.id);
             }}
             className={`absolute flex flex-col items-center gap-1 group pointer-events-auto cursor-pointer z-10 select-none ${draggingId === node.id ? 'z-50 scale-110' : 'transition-transform hover:scale-110'}`}
@@ -342,108 +279,92 @@ export const SupplyChainGraph: React.FC<Props> = ({ state, payoff, resetKey, flo
               cursor: draggingId ? 'grabbing' : 'grab'
             }}
           >
-            {/* Node Icon Box */}
             <div
-              className={`relative w-9 h-9 rounded-sm border-[1.5px] bg-white flex items-center justify-center shadow-md transition-all ${node.type === 'inventory' ? 'rounded-md' :
-                node.type === 'process' ? 'rounded-sm' : 'rounded-full'
-                } ${
-                // Highlight banned nodes
-                (state.usStrategy === 'EXPORT_BANS' && (node.id === 'inventory-1' || node.id === 'cn-us-import')) ||
-                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
-                  ? 'border-red-500 border-[3px] animate-pulse bg-red-50'
-                  : ''
-                }`}
-              style={{
-                borderColor: (state.usStrategy === 'EXPORT_BANS' && (node.id === 'inventory-1' || node.id === 'cn-us-import')) ||
-                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
-                  ? '#ef4444'
-                  : node.color
-              }}
+              className={`relative w-9 h-9 rounded-sm border-[1.5px] bg-white flex items-center justify-center shadow-md transition-all ${node.type === 'inventory' ? 'rounded-md' : node.type === 'process' ? 'rounded-sm' : 'rounded-full'} ${node.panicIndex > 70 ? 'animate-panic-pulse border-red-500 bg-red-50' : ''}`}
+              style={{ borderColor: isBannedPath(node.id) ? '#ef4444' : node.panicIndex > 70 ? '#ef4444' : node.color }}
             >
-              <node.icon className="w-5 h-5" style={{
-                color: (state.usStrategy === 'EXPORT_BANS' && (node.id === 'inventory-1' || node.id === 'cn-us-import')) ||
-                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-                  (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')
-                  ? '#ef4444'
-                  : node.color
-              }} strokeWidth={2.5} />
+              <node.icon className={`w-5 h-5 ${node.panicIndex > 70 ? 'animate-pulse' : ''}`} style={{ color: isBannedPath(node.id) ? '#ef4444' : node.panicIndex > 70 ? '#ef4444' : node.color }} strokeWidth={2.5} />
 
-              {/* Export Ban Badge */}
-              {((state.usStrategy === 'EXPORT_BANS' && (node.id === 'inventory-1' || node.id === 'cn-us-import')) ||
-                (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'inventory-2') ||
-                (state.chinaStrategy === 'EXPORT_BANS' && node.id === 'cn-raw')) && (
-                  <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[6px] px-1.5 py-0.5 rounded-full font-black shadow-lg border border-white">
-                    BANNED
-                  </div>
-                )}
+              {(isBannedPath(node.id) || node.panicIndex > 80) && (
+                <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[6px] px-1.5 py-0.5 rounded-full font-black shadow-lg border border-white uppercase tracking-tighter">
+                  {isBannedPath(node.id) ? 'BANNED' : 'HOARDING'}
+                </div>
+              )}
 
-              {/* Tariff/Ban Warning Triangle */}
-              {node.type === 'process' && (
-                (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS' || state.usStrategy === 'EXPORT_BANS')) ||
-                (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS' || state.chinaStrategy === 'EXPORT_BANS'))
-              ) && (
-                  <div className="absolute -top-8 -right-8 z-20 drop-shadow-sm">
-                    <TriangleAlert className="w-6 h-6 fill-[#fab005] text-white" strokeWidth={1.5} />
-                  </div>
-                )}
+              {node.panicIndex > 40 && (
+                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-white border border-slate-200 shadow-sm rounded-full px-1.5 py-0.5 flex items-center gap-1">
+                   <div className="w-1 h-1 rounded-full bg-red-500 animate-ping" />
+                   <span className="text-[7px] font-black text-red-600">{node.panicIndex}% PANIC</span>
+                </div>
+              )}
 
-              {/* Blockade Icon for Finished Goods (Tariffs & Bans) */}
-              {['finished-1', 'finished-2', 'cn-export-1', 'cn-export-2'].includes(node.id) && (
-                (flowType === 'US' && (state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')) ||
-                (flowType === 'CHINA' && (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS'))
-              ) && (
-                  <div className="absolute -top-7 -right-7 z-20 drop-shadow-sm">
-                    <div className="bg-emerald-600 text-white p-0.5 rounded-full border border-white">
-                      <ShieldBan className="w-4 h-4" strokeWidth={2} />
-                    </div>
-                  </div>
-                )}
-
-              {/* Tariff Dollar Sign Icon */}
-              {/* Tariff Dollar Sign Icon */}
-              {(['proc-1', 'proc-2', 'proc-3', 'proc-4', 'proc-5', 'cn-proc-1', 'cn-proc-2', 'cn-mfg-1', 'cn-proc-3', 'cn-mfg-2'].includes(node.id)) && (
-                ((flowType === 'US' && state.usStrategy === 'TARIFFS') ||
-                  (flowType === 'CHINA' && state.chinaStrategy === 'TARIFFS')) &&
-                !(state.usStrategy === 'TARIFFS' && state.chinaStrategy === 'TARIFFS') // Hide if BOTH are tariffs
-              ) && (
-                  <div className="absolute -top-7 -right-7 z-25 drop-shadow-md">
-                    <img src="/tariff-icon.png" alt="Tariff" className="w-6 h-6 object-contain" />
-                  </div>
-                )}
-
-
-
-
-
-              {/* Red Blinking Alert for Consumer (Impact Warning) */}
-              {node.type === 'customer' && (
-                (state.usStrategy === 'TARIFFS' || state.usStrategy === 'EXPORT_BANS' || state.chinaStrategy === 'TARIFFS' || state.chinaStrategy === 'EXPORT_BANS')
-              ) && (
-                  <div className="absolute -top-6 -right-6 z-20 drop-shadow-sm animate-pulse">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="w-7 h-7 text-red-600"
-                    >
-                      <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" className="invisible" />
-                      <path d="M12 6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 1 1-3 0v-7A1.5 1.5 0 0 1 12 6Zm0 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-                    </svg>
-                  </div>
-                )}
+              {state.policyStrategy === 'TARIFFS' && node.type === 'process' && (
+                <div className="absolute -top-8 -right-8 z-20 drop-shadow-sm">
+                  <TriangleAlert className="w-6 h-6 fill-[#fab005] text-white" strokeWidth={1.5} />
+                </div>
+              )}
             </div>
 
-            {/* Label Card */}
             <div className="bg-white border border-[#dee2e6] rounded-sm px-2 py-0.5 shadow-sm min-w-[60px] text-center">
               <span className="text-[9px] font-bold text-[#495057] whitespace-nowrap">{node.label}</span>
             </div>
-
-
           </div>
         ))}
       </div>
+      <MacroLegend />
     </div>
   );
 };
+
+export const MacroLegend = () => (
+    <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-md border border-slate-200 rounded-xl p-4 shadow-xl z-20 animate-in fade-in slide-in-from-left-4 duration-1000 select-none">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 flex items-center gap-2">
+            <Globe className="w-3 h-3" />
+            Macro Intelligence Legend
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-sm border-2 border-[#e03131] bg-red-50 flex items-center justify-center shrink-0">
+                    <Factory className="w-4 h-4 text-[#e03131]" />
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">Industrial</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase">Manufacturing</span>
+                </div>
+            </div>
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-sm border-2 border-[#1971c2] bg-blue-50 flex items-center justify-center shrink-0">
+                    <Cpu className="w-4 h-4 text-[#1971c2]" />
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">Technology</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase">Digital / IP</span>
+                </div>
+            </div>
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full border-2 border-[#e8590c] bg-orange-50 flex items-center justify-center shrink-0">
+                    <Database className="w-4 h-4 text-[#e8590c]" />
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">Resource</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase">Minerals / Energy</span>
+                </div>
+            </div>
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full border-2 border-[#2b8a3e] bg-emerald-50 flex items-center justify-center shrink-0">
+                    <Activity className="w-4 h-4 text-[#2b8a3e]" />
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">Capital</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase">Market Flow</span>
+                </div>
+            </div>
+        </div>
+        <div className="pt-3 mt-3 border-t border-slate-100 flex items-center gap-3">
+            <div className="w-8 flex justify-center">
+                <div className="w-4 h-px bg-[#adb5bd] border-t border-slate-300" />
+            </div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Trade Intensity Points (pts)</span>
+        </div>
+    </div>
+);

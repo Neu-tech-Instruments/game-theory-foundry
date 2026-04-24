@@ -1,20 +1,20 @@
-
 import React from 'react';
-import { Strategy, US_BanItem, CHINA_BanItem } from '../types';
 import { BAN_METRICS } from '../constants';
 
 interface Props {
   label: string;
-  value: Strategy;
-  focusValue: string;
-  onChange: (s: Strategy) => void;
-  onFocusChange: (f: any) => void;
+  value: string;
+  focusValue?: string;
+  onChange: (s: any) => void;
+  onFocusChange?: (f: any) => void;
   accentColor: string;
-  options: string[];
+  strategyOptions: string[];
+  focusOptions?: string[];
+  focusLabel?: string;
 }
 
 export const StrategyToggle: React.FC<Props> = ({
-  label, value, focusValue, onChange, onFocusChange, accentColor, options
+  label, value, focusValue, onChange, onFocusChange, accentColor, strategyOptions, focusOptions, focusLabel
 }) => {
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
@@ -24,25 +24,35 @@ export const StrategyToggle: React.FC<Props> = ({
       </div>
 
       <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-inner">
-        {(['FREE_TRADE', 'TARIFFS', 'EXPORT_BANS'] as Strategy[]).map((s) => (
-          <button
-            key={s}
-            onClick={() => onChange(s)}
-            className={`flex-1 py-2 px-1 rounded text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${value === s
-              ? `${s === 'FREE_TRADE' ? 'bg-emerald-500' : s === 'TARIFFS' ? 'bg-amber-500' : 'bg-[#e03131]'} text-white shadow-md`
-              : 'text-slate-500 hover:text-slate-700 hover:bg-white hover:shadow-sm'
-              }`}
-          >
-            {s === 'FREE_TRADE' ? 'FREE' : s === 'EXPORT_BANS' ? 'EXPORT' : 'TARIFFS'}
-          </button>
-        ))}
+        {strategyOptions.map((s) => {
+          let styleClass = 'text-slate-500 hover:text-slate-700 hover:bg-white hover:shadow-sm';
+          if (value === s) {
+            if (s === 'FREE_TRADE' || s === 'EXPANSION') styleClass = 'bg-emerald-500 text-white shadow-md';
+            else if (s === 'TARIFFS' || s === 'DIVERSIFICATION') styleClass = 'bg-amber-500 text-white shadow-md';
+            else styleClass = 'bg-[#e03131] text-white shadow-md'; // BANS or DEFENSIVE
+          }
+
+          let displayName = s.replace('_', ' ');
+          if (s === 'FREE_TRADE') displayName = 'FREE';
+          if (s === 'EXPORT_BANS') displayName = 'EXPORT';
+
+          return (
+            <button
+              key={s}
+              onClick={() => onChange(s)}
+              className={`flex-1 py-2 px-1 rounded text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${styleClass}`}
+            >
+              {displayName}
+            </button>
+          );
+        })}
       </div>
 
-      {value === 'EXPORT_BANS' && (
+      {value === 'EXPORT_BANS' && focusOptions && onFocusChange && (
         <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-300">
-          <div className="text-[9px] font-black text-slate-700 uppercase mb-1.5 ml-1 tracking-wider">Weaponized Asset:</div>
+          <div className="text-[9px] font-black text-slate-700 uppercase mb-1.5 ml-1 tracking-wider">{focusLabel || 'Weaponized Asset:'}</div>
           <div className="grid grid-cols-1 gap-1.5">
-            {options.map((opt) => (
+            {focusOptions.map((opt) => (
               <button
                 key={opt}
                 onClick={() => onFocusChange(opt)}
@@ -51,7 +61,7 @@ export const StrategyToggle: React.FC<Props> = ({
                   : 'bg-[#e9ecef] border-[#dee2e6] text-[#adb5bd] hover:border-[#ced4da]'
                   }`}
               >
-                {BAN_METRICS[opt].label}
+                {BAN_METRICS[opt as keyof typeof BAN_METRICS].label}
               </button>
             ))}
           </div>

@@ -1,0 +1,58 @@
+[
+    {
+        "upstream": "oil_price",
+        "downstream": "diesel",
+        "lag": 5,
+        "weight": 0.75,
+        "category": "fuel",
+        "confidence": 0.92
+    },
+    {
+        "upstream": "diesel",
+        "downstream": "shipping_costs",
+        "lag": 13,
+        "weight": 0.5700000000000001,
+        "category": "shipping",
+        "confidence": 0.7
+    },
+    {
+        "upstream": "shipping_costs",
+        "downstream": "bread",
+        "lag": 30,
+        "weight": 0.27999999999999986,
+        "category": "food",
+        "confidence": 0.74
+    },
+    {
+        "upstream": "oil_price",
+        "downstream": "shipping_costs",
+        "lag": 10,
+        "weight": 0.27999999999999997,
+        "category": "shipping",
+        "confidence": 0.79
+    },
+    {
+        "upstream": "natural_gas",
+        "downstream": "fertilizer",
+        "lag": 19,
+        "weight": 1.0,
+        "category": "agriculture",
+        "confidence": 0.91
+    },
+    {
+        "upstream": "fertilizer",
+        "downstream": "bread",
+        "lag": 44,
+        "weight": 0.21999999999999986,
+        "category": "food",
+        "confidence": 0.81
+    },
+    {
+        "upstream": "lithium",
+        "downstream": "electronics",
+        "lag": 58,
+        "weight": 0.2599999999999998,
+        "category": "electronics",
+        "confidence": 0.76
+    }
+]

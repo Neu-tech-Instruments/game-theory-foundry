@@ -1,143 +1,139 @@
-
-import { useMemo } from 'react';
-import { GameState, EconomyState, Payoff } from '../types';
-import { SCENARIOS, BASE_ECONOMY, BAN_METRICS } from '../constants';
+import { GameState, Payoff, SectorState, MapMode } from '../types';
+import { BASE_SECTORS, BAN_METRICS, SCENARIOS } from '../constants';
 
 export const calculatePayoff = (state: GameState): Payoff => {
   const scenario = SCENARIOS[state.scenario];
-  const us: EconomyState = { ...BASE_ECONOMY.US };
-  const china: EconomyState = { ...BASE_ECONOMY.CHINA };
-
-  // 1. TARIFFS LOGIC
-  const usTariff = state.usStrategy === 'TARIFFS';
-  const chinaTariff = state.chinaStrategy === 'TARIFFS';
-
-  if (usTariff && chinaTariff) {
-    // Nash Equilibrium: Both retaliate (Typically 5, 5)
-    // NEW LOGIC: Equalizer. If we are in a trade war, the advantages are wiped out.
-    // Calculate current cumulative stats to determine catch-up needed.
-    const usTotal = state.history.reduce((sum, h) => sum + h.payoff.us.points, 0);
-    const chinaTotal = state.history.reduce((sum, h) => sum + h.payoff.china.points, 0);
-
-    // We want (usTotal + usRound) === (chinaTotal + chinaRound)
-    // And base is 5, 5.
-    // So usRound = 5 + Correction, chinaRound = 5 - Correction
-    // (usTotal + 5 + C) = (chinaTotal + 5 - C)
-    // 2C = chinaTotal - usTotal
-    const catchUp = (chinaTotal - usTotal) / 2;
-
-    us.points = 5.0 + catchUp;
-    china.points = 5.0 - catchUp;
-
-    us.inflation += 2.0;
-    china.inflation += 2.0;
-    us.stability -= 10;
-    china.stability -= 10;
-  } else if (usTariff) {
-    // US Impose Tariffs / China Free Trade (12, 2)
-    us.points = 12.0;
-    china.points = 2.0;
-
-    us.stability += 5;
-    china.inflation += 0.3;
-  } else if (chinaTariff) {
-    // China Impose Tariffs / US Free Trade (2, 12)
-    china.points = 12.0;
-    us.points = 2.0;
-
-    china.stability += 3;
-    us.inflation += 0.6;
-  }
-
-  // 2. EXPORT BANS LOGIC
-  if (state.usStrategy === 'EXPORT_BANS') {
-    const ban = BAN_METRICS[state.usBanFocus];
-    us.points -= 1.0;
-    us.inflation += 0.3;
-
-    china.points += (ban.pointImpact * scenario.tradeDependency.chinaOnUs);
-    china.stability += (ban.stabilityImpact * scenario.tradeDependency.chinaOnUs);
-    china.inflation += 1.5;
-  }
-
-  if (state.chinaStrategy === 'EXPORT_BANS') {
-    const ban = BAN_METRICS[state.chinaBanFocus];
-    china.points -= 1.0;
-    china.inflation += 0.2;
-
-    us.points += (ban.pointImpact * scenario.tradeDependency.usOnChina);
-    us.stability += (ban.stabilityImpact * scenario.tradeDependency.usOnChina);
-    us.inflation += (ban.inflationImpact * scenario.tradeDependency.usOnChina);
-  }
-
-  // Global drag if both ban
-  if (state.usStrategy === 'EXPORT_BANS' && state.chinaStrategy === 'EXPORT_BANS') {
-    us.inflation += 2.0;
-    china.inflation += 2.0;
-
-    if (state.scenario === 'CHICKEN') {
-      us.points -= 5.0;
-      china.points -= 5.0;
-      us.stability -= 30;
-      china.stability -= 30;
-    }
-  }
-
-  // CHICKEN ONE-SIDED ESCALATION
-  if (state.scenario === 'CHICKEN') {
-    if (state.usStrategy === 'EXPORT_BANS' && state.chinaStrategy !== 'EXPORT_BANS') {
-      us.points += 1.0;
-      china.points -= 3.5;
-    }
-    if (state.chinaStrategy === 'EXPORT_BANS' && state.usStrategy !== 'EXPORT_BANS') {
-      china.points += 1.0;
-      us.points -= 3.5;
-    }
-  }
-
-  // Rounding & Clamping (Integers and .5 increments only)
-  const finalizePoints = (pts: number) => {
-    // Force to 0.5 increments
-    const rounded = Math.round(pts * 2) / 2;
-    // Clamp between 0.0 and 20.0 (Expanded for equalization swings)
-    return Math.max(0, Math.min(20, rounded));
+  const pol = state.policyStrategy;
+  const ind = state.industryStrategy;
+  
+  // Clone base sectors
+  const sectors: Record<MapMode, SectorState> = {
+    TECH: { ...BASE_SECTORS.TECH },
+    MANUFACTURING: { ...BASE_SECTORS.MANUFACTURING },
+    ENERGY: { ...BASE_SECTORS.ENERGY },
+    FINANCE: { ...BASE_SECTORS.FINANCE }
   };
 
-  us.points = finalizePoints(us.points);
-  china.points = finalizePoints(china.points);
-
-  // Generate descriptive outcome text
-  const diff = us.points - china.points;
   let description = '';
 
-  if (state.usStrategy === 'TARIFFS' && state.chinaStrategy === 'TARIFFS') {
-    description = 'Total Equalization - Previous strategic advantages have been neutralized.';
-  } else if (Math.abs(diff) < 0.5) {
-    if (us.points <= 6) {
-      description = 'Nash Equilibrium: Both retaliate; mutual loss.';
-    } else {
-      description = 'Global Optimum: Maximum growth for both.';
-    }
-  } else if (diff > 2.5) {
-    description = 'US protects jobs; China loses export revenue.';
-  } else if (diff > 1.0) {
-    description = 'US wins - China experiences moderate economic pressure';
-  } else if (diff > 0) {
-    description = 'US gains slight advantage - China faces minor setbacks';
-  } else if (diff < -2.5) {
-    description = 'US loses manufacturing; China gains via protectionism.';
-  } else if (diff < -1.0) {
-    description = 'China wins - US experiences moderate economic pressure';
-  } else {
-    description = 'China gains slight advantage - US faces minor setbacks';
+  // 1. BASE MATRIX LOGIC: POLICY vs INDUSTRY
+  if (pol === 'FREE_TRADE' && ind === 'EXPANSION') {
+    // Both maximize growth, high risk, high reward
+    sectors.TECH.points += 1.5; sectors.TECH.growth += 3;
+    sectors.FINANCE.points += 1.0; sectors.FINANCE.growth += 2;
+    sectors.MANUFACTURING.points += 0.5;
+    description = 'Golden Era: Free capital flow triggers aggressive global expansion.';
+  } else if (pol === 'FREE_TRADE' && ind === 'DIVERSIFICATION') {
+    // Industries play it safe despite free trade
+    sectors.MANUFACTURING.stability += 10;
+    sectors.TECH.stability += 5;
+    sectors.FINANCE.points -= 0.5; // capital tied up in redundant supply chains
+    description = 'Resilient Growth: Policies allow free trade, while industries build redundant supply chains.';
+  } else if (pol === 'FREE_TRADE' && ind === 'DEFENSIVE') {
+    // Free trade but industries hoard cash
+    sectors.FINANCE.points += 1.5;
+    sectors.MANUFACTURING.points -= 1.0; sectors.MANUFACTURING.growth -= 2;
+    sectors.TECH.points -= 1.0;
+    description = 'Capital Hoarding: Open markets fail to stimulate growth as corporations stockpile cash.';
+  } else if (pol === 'TARIFFS' && ind === 'EXPANSION') {
+    // Tariffs hit expanding industries with high costs
+    sectors.MANUFACTURING.inflation += 4.0; sectors.MANUFACTURING.points -= 1.5;
+    sectors.TECH.inflation += 3.0; sectors.TECH.points -= 1.0;
+    sectors.FINANCE.points -= 1.0;
+    description = 'Supply Shock: Tariffs crush aggressive expansion, causing massive cost-push inflation.';
+  } else if (pol === 'TARIFFS' && ind === 'DIVERSIFICATION') {
+    // Diversification blunts the tariffs
+    sectors.MANUFACTURING.stability += 5; sectors.MANUFACTURING.inflation += 1.5;
+    sectors.TECH.stability += 2;
+    description = 'Managed Decline: Diversified supply chains absorb tariff shocks, preventing severe inflation.';
+  } else if (pol === 'TARIFFS' && ind === 'DEFENSIVE') {
+    // Both sides hunker down
+    sectors.MANUFACTURING.points -= 2.0; sectors.MANUFACTURING.growth -= 3;
+    sectors.ENERGY.points -= 1.5;
+    sectors.FINANCE.stability += 5;
+    description = 'Stagflation: Protectionist policies and defensive corporate hoarding grind global growth to a halt.';
+  } else if (pol === 'EXPORT_BANS' && ind === 'EXPANSION') {
+    // Catastrophic clash
+    sectors.TECH.points -= 3.0; sectors.TECH.inflation += 5.0; sectors.TECH.stability -= 25;
+    sectors.MANUFACTURING.points -= 2.5; sectors.MANUFACTURING.inflation += 4.0;
+    sectors.FINANCE.stability -= 20;
+    description = 'Catastrophic Collision: Export bans decimate aggressive expansion strategies, sparking financial panic.';
+  } else if (pol === 'EXPORT_BANS' && ind === 'DIVERSIFICATION') {
+    // Partial mitigation
+    sectors.TECH.points -= 1.5; sectors.TECH.inflation += 2.0;
+    sectors.MANUFACTURING.stability -= 5;
+    // Partial mitigation logic
+    description = 'Costly Independence: Export bans force expensive decoupling, but diversified networks prevent collapse.';
+  } else if (pol === 'EXPORT_BANS' && ind === 'DEFENSIVE') {
+    // Absolute freeze
+    sectors.FINANCE.points -= 2.0; sectors.FINANCE.stability -= 15;
+    sectors.ENERGY.points -= 2.0;
+    sectors.MANUFACTURING.growth -= 5;
+    description = 'Deep Freeze: Extreme trade warfare and corporate retreat plunge markets into a deep freeze.';
   }
 
-  return {
-    us, china,
-    description
+  // 2. EXPORT BAN SPECIFIC TARGETING
+  if (pol === 'EXPORT_BANS') {
+    const asset = BAN_METRICS[state.bannedAsset];
+    const target = asset.targetSector as MapMode;
+    sectors[target].points += asset.pointImpact;
+    sectors[target].stability += asset.stabilityImpact;
+    sectors[target].inflation += asset.inflationImpact;
+    description += ` ${asset.label} bans directly target ${sectors[target].name}.`;
+  }
+
+  // 3. SCENARIO MODIFIERS & PANIC CALCULATION
+  const calculatePanic = (sector: SectorState) => {
+    let panic = 0;
+    
+    // Inflation-driven panic (Exponential)
+    if (sector.inflation > 5) panic += (sector.inflation - 5) * 5;
+    if (sector.inflation > 12) panic += 30; // Crisis threshold
+    
+    // Stability-driven panic
+    if (sector.stability < 60) panic += (60 - sector.stability) * 0.8;
+    if (sector.stability < 30) panic += 20; // Collapse threshold
+    
+    // Scenario-specific panic multipliers
+    if (scenario.id === 'SUPPLY_SHOCK') panic *= 1.5;
+    if (scenario.id === 'RECESSION') panic *= 1.2;
+    
+    // Strategy Panic: Export bans + Aggressive strategy = High Panic
+    if (state.policyStrategy === 'EXPORT_BANS' && state.industryStrategy === 'EXPANSION') {
+        panic += 25;
+    }
+
+    return Math.min(100, Math.max(0, panic));
   };
+
+  const applyVolatility = (sector: SectorState) => {
+    // If bear/recession, points and growth suffer based on volatility
+    if (scenario.id === 'BEAR_MARKET' || scenario.id === 'RECESSION') {
+      sector.points -= scenario.volatility * (pol === 'FREE_TRADE' ? 0.5 : 1.5);
+      sector.growth -= scenario.volatility * 2;
+    }
+    // If supply shock, inflation spikes
+    if (scenario.id === 'SUPPLY_SHOCK') {
+      sector.inflation += scenario.volatility * 2;
+      sector.stability -= scenario.volatility * 10;
+    }
+
+    // Calculate panic for this state
+    sector.panicIndex = calculatePanic(sector);
+  };
+
+  Object.values(sectors).forEach(applyVolatility);
+
+  // Clamp limits
+  Object.values(sectors).forEach(s => {
+    s.points = Math.max(0, Math.min(10, s.points));
+    s.inflation = Math.max(0, s.inflation);
+    s.stability = Math.max(0, Math.min(100, s.stability));
+    s.panicIndex = Math.round(s.panicIndex);
+  });
+
+  return { sectors, description };
 };
 
-export const useTradeEngine = (state: GameState): Payoff => {
-  return useMemo(() => calculatePayoff(state), [state]);
-};
+export const useTradeEngine = (state: GameState): Payoff => calculatePayoff(state);
+
