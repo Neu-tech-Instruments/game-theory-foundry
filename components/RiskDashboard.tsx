@@ -344,6 +344,43 @@ const MAX_RENDER_NODES = 1500;
     }
   }, [allNodesPositioned, viewState, onGraphStateChange]);
 
+  // Auto-fit to full horizontal view whenever a new network is selected
+  const lastFittedNetworkId = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !allNodesPositioned.length ||
+      !graphContainerRef.current ||
+      containerSize.width === 0 ||
+      selectedNetworkId === lastFittedNetworkId.current
+    ) return;
+
+    lastFittedNetworkId.current = selectedNetworkId;
+
+    const xs = allNodesPositioned.map((n: any) => n.position.x);
+    const ys = allNodesPositioned.map((n: any) => n.position.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const graphW = maxX - minX + 220; // node width padding
+    const graphH = maxY - minY + 180; // node height padding
+
+    const cW = containerSize.width;
+    const cH = containerSize.height;
+
+    // Fit zoom so the full graph fills the viewport horizontally (with some margin)
+    const zoomX = (cW * 0.88) / graphW;
+    const zoomY = (cH * 0.82) / graphH;
+    const zoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.08), 1.2);
+
+    // Center the graph in the canvas
+    const panX = (cW / zoom - graphW) / 2 - minX + 110;
+    const panY = (cH / zoom - graphH) / 2 - minY + 90;
+
+    setViewState({ panX, panY, zoom });
+  }, [allNodesPositioned, containerSize, selectedNetworkId]);
+
+
   // Path Highlighting Logic: Identify all ancestors and descendants of a hovered node
   const pathNodeIds = useMemo(() => {
     if (!hoveredNodeId || !allNodes.length) return new Set<string>();
