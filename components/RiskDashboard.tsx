@@ -768,6 +768,9 @@ export const NeuralCanvasSynapses: React.FC<{
         const { zoom, panX, panY } = viewState;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        const nodesMap = new Map();
+        allNodes.forEach(n => nodesMap.set(n.id, n));
+
         // Two-pass rendering: draw dim context edges first, bright focus edges on top
         const isFiltering = !!hoveredNodeId;
 
@@ -776,7 +779,7 @@ export const NeuralCanvasSynapses: React.FC<{
         allNodes.forEach(parent => {
             if (!parent.children) return;
             parent.children.forEach((child: any) => {
-                const target = allNodes.find((n: any) => n.id === child.id);
+                const target = nodesMap.get(child.id);
                 if (!target) return;
 
                 const inPath = isFiltering
@@ -807,7 +810,7 @@ export const NeuralCanvasSynapses: React.FC<{
             allNodes.forEach(parent => {
                 if (!parent.children) return;
                 parent.children.forEach((child: any) => {
-                    const target = allNodes.find((n: any) => n.id === child.id);
+                    const target = nodesMap.get(child.id);
                     if (!target) return;
                     if (!pathNodeIds.has(parent.id) || !pathNodeIds.has(target.id)) return;
 
@@ -1081,9 +1084,12 @@ export const NeuralMiniMap: React.FC<{ allNodes: any[], viewState: any, setViewS
             <div className="absolute top-2 left-3 text-[8px] font-black text-slate-400 uppercase tracking-widest pointer-events-none">Neural Radar</div>
             <svg width={miniSize} height={miniSize} className="opacity-60">
                 {/* Connections */}
-                {allNodes.flatMap(parent => (parent.children || []).map((child: any) => {
-                    const c = allNodes.find(n => n.id === child.id);
-                    if (!c) return null;
+                {(() => {
+                    const nodesMap = new Map();
+                    allNodes.forEach(n => nodesMap.set(n.id, n));
+                    return allNodes.flatMap(parent => (parent.children || []).map((child: any) => {
+                        const c = nodesMap.get(child.id);
+                        if (!c) return null;
                     return (
                         <line
                             key={`${parent.id}-${child.id}`}
@@ -1092,7 +1098,8 @@ export const NeuralMiniMap: React.FC<{ allNodes: any[], viewState: any, setViewS
                             stroke="#cbd5e1" strokeWidth="0.5"
                         />
                     );
-                }))}
+                }));
+                })()}
                 {/* Nodes */}
                 {allNodes.map(n => (
                     <circle
