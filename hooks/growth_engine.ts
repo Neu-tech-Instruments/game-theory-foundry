@@ -69,7 +69,9 @@ export const synthesizeProduct = (prompt: string, isImage: boolean = false): { t
         const categories = ['GENESIS', 'ASSEMBLY', 'SUB_SYSTEM', 'MODULE', 'COMPONENT', 'PART', 'ELEMENT'];
         const currentCategory = categories[depth] || 'COMPONENT';
 
-        const subCount = isMega ? (depth === 0 ? 12 : (depth < 3 ? 5 : 3)) : 3;
+        const subCount = isMega
+            ? (depth === 0 ? 12 : (depth === 1 ? 6 : (depth === 2 ? 4 : 3)))
+            : 3;
         return Array.from({ length: subCount }).map((_, i) => {
             const compId = `comp-${depth}-${i}-${Math.random().toString(36).substr(2, 4)}`;
             return {
@@ -84,7 +86,7 @@ export const synthesizeProduct = (prompt: string, isImage: boolean = false): { t
         });
     };
 
-    const maxDepth = isMega ? 6 : 2; // Mega: 7 levels (0-6). Standard: 3 levels (0,1,2).
+    const maxDepth = isMega ? 4 : 2; // Mega: 5 levels (0-4) ≈ 12×6×4×3×3 = ~2,592 leaf nodes max. Standard: 3 levels.
     const genealogy = expandNode(ucPrompt, 0, maxDepth);
 
     return {

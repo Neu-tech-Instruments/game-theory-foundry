@@ -255,8 +255,11 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
   };
 
 
-  // Flatten and Position ALL nodes — no LOD culling (used for bounding box in Center View)
-  const allNodesPositioned = useMemo(() => {
+// Hard cap: never render more than this many nodes (prevents browser OOM on huge products)
+const MAX_RENDER_NODES = 1500;
+
+    // Flatten and Position ALL nodes — no LOD culling (used for bounding box in Center View)
+    const allNodesPositioned = useMemo(() => {
     if (!selectedNetwork) return [];
 
     interface PositionedNode extends MaterialNode {
@@ -311,18 +314,20 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
             if (n.children) walk(n.children);
         });
     };
-    walk(positionedGenealogy);
-    return flat;
-  }, [selectedNetwork, collapsedNodeIds]);
+        walk(positionedGenealogy);
+        // Hard cap — avoid OOM/crash on huge products
+        return flat.length > MAX_RENDER_NODES ? flat.slice(0, MAX_RENDER_NODES) : flat;
+    }, [selectedNetwork, collapsedNodeIds]);
+
 
   // LOD-filtered view — only nodes inside the current viewport (for rendering performance) + category filter
   const allNodes = useMemo(() => {
+    // For very large graphs, use a tighter buffer to keep the render list small
+    const buffer = allNodesPositioned.length > 500 ? 120 : 300;
     return allNodesPositioned.filter(node => {
-        // Category filter: skip nodes whose category is hidden
         if (hiddenCategories.size > 0 && hiddenCategories.has(node.category || 'COMPONENT')) return false;
         const x = (node.position.x + viewState.panX) * viewState.zoom;
         const y = (node.position.y + viewState.panY) * viewState.zoom;
-        const buffer = 300;
         return (
             x > -buffer &&
             x < containerSize.width + buffer &&
@@ -461,7 +466,17 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
                         <Maximize2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 transition-colors" />
                         Center View
                     </button>
-                </div>
+                    </div>
+
+                    {/* Truncation warning banner for very large products */}
+                    {allNodesPositioned.length >= MAX_RENDER_NODES && (
+                        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 shadow-sm">
+                            <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                            <span className="text-[9px] font-black uppercase tracking-widest text-amber-700">
+                                Rendering top {MAX_RENDER_NODES.toLocaleString()} nodes — use filters to explore specific tiers
+                            </span>
+                        </div>
+                    )}
 
                 {/* Free-form canvas: all nodes are absolutely positioned */}
                 <div 
@@ -766,11 +781,15 @@ export const NeuralCanvasSynapses: React.FC<{
         const { zoom, panX, panY } = viewState;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Skip synapse drawing for very large graphs — canvas loop is O(n²) and kills framerate
+        if (allNodes.length > 400) return;
+
         // Two-pass rendering: draw dim context edges first, bright focus edges on top
         const isFiltering = !!hoveredNodeId;
 
         // PASS 1 — Context: all edges as a subtle ambient texture
         ctx.setLineDash([]);
+
         allNodes.forEach(parent => {
             if (!parent.children) return;
             parent.children.forEach((child: any) => {
