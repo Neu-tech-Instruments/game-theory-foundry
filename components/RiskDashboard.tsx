@@ -1036,8 +1036,53 @@ export const NeuralMiniMap: React.FC<{ allNodes: any[], viewState: any, setViewS
     }, [allNodes]);
 
     const scale = Math.min((miniSize - padding * 2) / (bounds.maxX - bounds.minX), (miniSize - padding * 2) / (bounds.maxY - bounds.minY));
-    const getMiniX = (x: number) => padding + (x - bounds.minX) * scale;
-    const getMiniY = (y: number) => padding + (y - bounds.minY) * scale;
+    const getMiniX = useCallback((x: number) => padding + (x - bounds.minX) * scale, [bounds.minX, scale]);
+    const getMiniY = useCallback((y: number) => padding + (y - bounds.minY) * scale, [bounds.minY, scale]);
+
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.parentElement?.getBoundingClientRect();
+        if (!rect) return;
+        
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        
+        ctx.globalAlpha = 0.6;
+        const nodesMap = new Map();
+        allNodes.forEach(n => nodesMap.set(n.id, n));
+
+        // Draw connections
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.beginPath();
+        allNodes.forEach(parent => {
+            if (!parent.children) return;
+            parent.children.forEach((child: any) => {
+                const c = nodesMap.get(child.id);
+                if (!c) return;
+                ctx.moveTo(getMiniX(parent.position?.x), getMiniY(parent.position?.y));
+                ctx.lineTo(getMiniX(c.position?.x), getMiniY(c.position?.y));
+            });
+        });
+        ctx.stroke();
+
+        // Draw nodes
+        allNodes.forEach(n => {
+            ctx.beginPath();
+            ctx.arc(getMiniX(n.position?.x), getMiniY(n.position?.y), 1.5, 0, 2 * Math.PI);
+            ctx.fillStyle = NEURAL_PALETTE[n.category] || '#94a3b8';
+            ctx.fill();
+        });
+    }, [allNodes, getMiniX, getMiniY]);
 
     const navigateTo = (clientX: number, clientY: number) => {
         if (!miniRef.current) return;
@@ -1082,33 +1127,7 @@ export const NeuralMiniMap: React.FC<{ allNodes: any[], viewState: any, setViewS
             }}
         >
             <div className="absolute top-2 left-3 text-[8px] font-black text-slate-400 uppercase tracking-widest pointer-events-none">Neural Radar</div>
-            <svg width={miniSize} height={miniSize} className="opacity-60">
-                {/* Connections */}
-                {(() => {
-                    const nodesMap = new Map();
-                    allNodes.forEach(n => nodesMap.set(n.id, n));
-                    return allNodes.flatMap(parent => (parent.children || []).map((child: any) => {
-                        const c = nodesMap.get(child.id);
-                        if (!c) return null;
-                    return (
-                        <line
-                            key={`${parent.id}-${child.id}`}
-                            x1={getMiniX(parent.position?.x)} y1={getMiniY(parent.position?.y)}
-                            x2={getMiniX(c.position?.x)} y2={getMiniY(c.position?.y)}
-                            stroke="#cbd5e1" strokeWidth="0.5"
-                        />
-                    );
-                }));
-                })()}
-                {/* Nodes */}
-                {allNodes.map(n => (
-                    <circle
-                        key={n.id}
-                        cx={getMiniX(n.position?.x)} cy={getMiniY(n.position?.y)}
-                        r="1.5" fill={NEURAL_PALETTE[n.category] || '#94a3b8'}
-                    />
-                ))}
-            </svg>
+            <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} className="absolute inset-0 pointer-events-none" />
             {/* Viewport Frame */}
             <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
                 <div
